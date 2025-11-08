@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ia-utils"
+version = "0.1.0"
+description = "CLI tool to work with Internet Archive documents"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.1.0",
+    "internetarchive>=3.5.0",
+    "sqlite-utils>=3.30.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=4.9.0",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+ia-utils = "ia_utils.cli:cli"
+
+[tool.uv]
+managed = true
+
+[tool.uv.sources]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ia_utils"]
