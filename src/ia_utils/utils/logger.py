@@ -42,16 +42,19 @@ class Logger:
         click.echo(f"\n{title}")
 
     def progress(self, message: str, nl: bool = False) -> None:
-        """Print progress indicator without newline."""
-        click.echo(message, nl=nl)
+        """Print progress indicator without newline (only in verbose mode)."""
+        if self.verbose:
+            click.echo(message, nl=nl)
 
     def progress_done(self, message: str = "✓") -> None:
-        """Complete a progress indicator."""
-        click.echo(f" {message}")
+        """Complete a progress indicator (only in verbose mode)."""
+        if self.verbose:
+            click.echo(f" {message}")
 
     def progress_fail(self, message: str = "✗") -> None:
-        """Fail a progress indicator."""
-        click.echo(f" {message}", err=True)
+        """Fail a progress indicator (only in verbose mode)."""
+        if self.verbose:
+            click.echo(f" {message}", err=True)
 
 
 def get_logger(verbose: bool = False) -> Logger:
