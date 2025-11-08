@@ -100,7 +100,6 @@ class JP2ImageSource(ImageSource):
 def process_image(image_bytes: bytes,
                  output_path: Path,
                  output_format: str = 'jpg',
-                 width: Optional[int] = None,
                  quality: Optional[int] = None,
                  autocontrast: bool = False,
                  cutoff: Optional[int] = None,
@@ -112,7 +111,6 @@ def process_image(image_bytes: bytes,
         image_bytes: Raw image data
         output_path: Path to write output file
         output_format: Output format ('jpg', 'png', 'jp2')
-        width: Optional width for resampling (maintains aspect ratio)
         quality: JPEG quality (1-95)
         autocontrast: Enable autocontrast
         cutoff: Autocontrast cutoff (0-100)
@@ -126,12 +124,6 @@ def process_image(image_bytes: bytes,
 
     # Open image
     img = Image.open(BytesIO(image_bytes))
-
-    # Resample if width specified
-    if width:
-        aspect_ratio = img.height / img.width
-        new_height = int(width * aspect_ratio)
-        img = img.resize((width, new_height), Image.Resampling.LANCZOS)
 
     # Apply autocontrast if requested or if options were explicitly set
     should_apply_autocontrast = autocontrast or cutoff is not None or preserve_tone
@@ -225,7 +217,6 @@ def download_and_convert_page(ia_id: str,
         image_bytes,
         output_path,
         output_format=output_format,
-        width=None,  # API images are fixed size, no width support
         quality=quality,
         autocontrast=autocontrast,
         cutoff=cutoff,

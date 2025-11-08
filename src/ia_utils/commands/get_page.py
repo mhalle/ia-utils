@@ -53,13 +53,14 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     - small: ~100px (API, very fast)
     - medium: ~256px (API, default, fast)
     - large: ~512px (API, fast)
-    - original: JP2 lossless (slower, highest quality, only with default --format)
+    - original: JP2 lossless (slower, highest quality)
 
     Examples:
         ia-utils get-page anatomicalatlasi00smit -n 5 -o page.png
         ia-utils get-page anatomicalatlasi00smit -n 5 --size large
         ia-utils get-page https://archive.org/details/b31362138/page/n404/ -o page.png
-        ia-utils -v get-page b31362138 -n 42 -c catalog.sqlite --size original --format jpg
+        ia-utils -v get-page b31362138 -n 42 -c catalog.sqlite --size original
+        ia-utils get-page anatomicalatlasi00smit -n 5 --size original --autocontrast --quality 90
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
