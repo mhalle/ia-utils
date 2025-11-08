@@ -4,7 +4,11 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Literal
 from io import BytesIO
+import requests
+from remotezip import RemoteZip
 from PIL import Image, ImageOps
+
+from ia_utils.utils.logger import Logger
 
 
 class ImageSource(ABC):
@@ -20,21 +24,77 @@ class APIImageSource(ImageSource):
     """Fetch images from Internet Archive API (small, medium, large)."""
 
     def __init__(self, size: Literal['small', 'medium', 'large'] = 'medium'):
+        if size not in ('small', 'medium', 'large'):
+            raise ValueError(f"Invalid API size: {size}")
         self.size = size
 
     def fetch(self, ia_id: str, page_num: int) -> bytes:
-        """Fetch image from IA API."""
-        # TODO: Implement API image fetching
-        pass
+        """Fetch image from IA page API.
+
+        Args:
+            ia_id: Internet Archive identifier
+            page_num: Sequential page number (0-origin for API)
+
+        Returns:
+            Image bytes
+
+        Raises:
+            Exception: If download fails
+        """
+        # IA API uses 0-origin page numbering
+        # URL format: https://archive.org/download/{id}/page/n{page_num}_{size}.jpg
+        size_suffix = f"_{self.size}" if self.size != 'medium' else ""
+        url = f"https://archive.org/download/{ia_id}/page/n{page_num}{size_suffix}.jpg"
+
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return response.content
 
 
 class JP2ImageSource(ImageSource):
     """Fetch images from jp2.zip using remotezip (original quality)."""
 
     def fetch(self, ia_id: str, page_num: int) -> bytes:
-        """Fetch image from JP2 archive."""
-        # TODO: Implement JP2 image fetching
-        pass
+        """Fetch image from JP2 archive.
+
+        Args:
+            ia_id: Internet Archive identifier
+            page_num: Sequential page number (1-origin for JP2)
+
+        Returns:
+            Image bytes
+
+        Raises:
+            Exception: If download fails
+        """
+        # Format page number as 4-digit zero-padded for jp2 archive
+        jp2_page_num = f"{page_num:04d}"
+        jp2_filename = f"{ia_id}_{jp2_page_num}.jp2"
+        # Files are stored in subdirectory {ia_id}_jp2/
+        jp2_path_in_zip = f"{ia_id}_jp2/{jp2_filename}"
+
+        # IA jp2.zip URL
+        zip_url = f"https://archive.org/download/{ia_id}/{ia_id}_jp2.zip"
+
+        try:
+            # Use remotezip to fetch just this one file
+            with RemoteZip(zip_url) as rz:
+                # Check if file exists in zip (try both with and without subdirectory)
+                file_in_zip = None
+                if jp2_path_in_zip in rz.namelist():
+                    file_in_zip = jp2_path_in_zip
+                elif jp2_filename in rz.namelist():
+                    file_in_zip = jp2_filename
+
+                if not file_in_zip:
+                    raise FileNotFoundError(f"Page {page_num} ({jp2_filename}) not found in archive")
+
+                # Read the jp2 file into memory
+                jp2_data = rz.read(file_in_zip)
+                return jp2_data
+
+        except Exception as e:
+            raise Exception(f"Failed to fetch JP2 page {page_num}: {e}")
 
 
 def process_image(image_bytes: bytes,
@@ -44,10 +104,68 @@ def process_image(image_bytes: bytes,
                  quality: Optional[int] = None,
                  autocontrast: bool = False,
                  cutoff: Optional[int] = None,
-                 preserve_tone: bool = False) -> None:
-    """Process and save image with optional transformations."""
-    # TODO: Implement image processing
-    pass
+                 preserve_tone: bool = False,
+                 logger: Optional[Logger] = None) -> None:
+    """Process and save image with optional transformations.
+
+    Args:
+        image_bytes: Raw image data
+        output_path: Path to write output file
+        output_format: Output format ('jpg', 'png', 'jp2')
+        width: Optional width for resampling (maintains aspect ratio)
+        quality: JPEG quality (1-95)
+        autocontrast: Enable autocontrast
+        cutoff: Autocontrast cutoff (0-100)
+        preserve_tone: Preserve tone in autocontrast
+        logger: Optional logger instance
+    """
+    if logger is None:
+        logger = Logger(verbose=False)
+
+    logger.progress("   Processing image...", nl=False)
+
+    # Open image
+    img = Image.open(BytesIO(image_bytes))
+
+    # Resample if width specified
+    if width:
+        aspect_ratio = img.height / img.width
+        new_height = int(width * aspect_ratio)
+        img = img.resize((width, new_height), Image.Resampling.LANCZOS)
+
+    # Apply autocontrast if requested or if options were explicitly set
+    should_apply_autocontrast = autocontrast or cutoff is not None or preserve_tone
+    if should_apply_autocontrast:
+        ac_kwargs = {}
+        # Use specified cutoff, or default to 2 if autocontrast is enabled but no cutoff specified
+        if cutoff is not None:
+            ac_kwargs['cutoff'] = cutoff
+        else:
+            ac_kwargs['cutoff'] = 2
+        img = ImageOps.autocontrast(img, **ac_kwargs)
+
+    # Convert format if needed
+    save_kwargs = {}
+    save_format = output_format.upper()
+
+    if output_format.lower() == 'jpg':
+        # Convert RGBA to RGB if needed
+        if img.mode in ('RGBA', 'LA', 'P'):
+            # Create white background
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+
+        if quality:
+            save_kwargs['quality'] = quality
+
+        save_format = 'JPEG'
+
+    # Save output
+    img.save(output_path, format=save_format, **save_kwargs)
+    logger.progress_done("✓")
 
 
 def download_and_convert_page(ia_id: str,
@@ -59,7 +177,60 @@ def download_and_convert_page(ia_id: str,
                              autocontrast: bool = False,
                              cutoff: Optional[int] = None,
                              preserve_tone: bool = False,
-                             verbose: bool = False) -> None:
-    """High-level function to download and convert a page image."""
-    # TODO: Implement download_and_convert_page
-    pass
+                             logger: Optional[Logger] = None) -> None:
+    """High-level function to download and convert a page image.
+
+    Args:
+        ia_id: Internet Archive identifier
+        page_num: Sequential page number
+        output_path: Path to write output file
+        size: Image size (small, medium, large, original)
+        output_format: Output format (jpg, png, jp2)
+        quality: JPEG quality (1-95)
+        autocontrast: Enable autocontrast
+        cutoff: Autocontrast cutoff (0-100)
+        preserve_tone: Preserve tone in autocontrast
+        logger: Optional logger instance
+
+    Raises:
+        ValueError: If size is invalid
+        Exception: If download fails
+    """
+    if logger is None:
+        logger = Logger(verbose=False)
+
+    # Validate size parameter
+    if size not in ('small', 'medium', 'large', 'original'):
+        raise ValueError(f"Invalid size: {size}")
+
+    # Choose image source based on size
+    if size == 'original':
+        source = JP2ImageSource()
+    else:
+        source = APIImageSource(size=size)  # type: ignore
+
+    # Download image
+    logger.progress(f"   Downloading {size} image...", nl=False)
+    try:
+        image_bytes = source.fetch(ia_id, page_num)
+        size_mb = len(image_bytes) / 1024 / 1024
+        logger.progress_done(f"✓ ({size_mb:.1f} MB)")
+    except Exception as e:
+        logger.progress_fail("✗")
+        logger.error(f"Failed to download image: {e}")
+        raise
+
+    # Process and save
+    process_image(
+        image_bytes,
+        output_path,
+        output_format=output_format,
+        width=None,  # API images are fixed size, no width support
+        quality=quality,
+        autocontrast=autocontrast,
+        cutoff=cutoff,
+        preserve_tone=preserve_tone,
+        logger=logger
+    )
+
+    logger.info(f"   Saved: {output_path.name}")
