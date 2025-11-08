@@ -52,3 +52,8 @@ htmlcov/
 *.sqlite
 *.sqlite-journal
 *.pdf
+*.jpg
+*.jpeg
+*.png
+*.jp2
+uv.lock
