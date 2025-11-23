@@ -11,6 +11,26 @@ from PIL import Image, ImageOps
 from ia_utils.utils.logger import Logger
 
 
+def get_server_from_metadata(ia_id: str) -> str:
+    """Get the actual IA server hosting an item from metadata API.
+
+    Args:
+        ia_id: Internet Archive identifier
+
+    Returns:
+        Server hostname (e.g., 'ia800508.us.archive.org') or 'archive.org' as fallback
+    """
+    try:
+        resp = requests.get(f'https://archive.org/metadata/{ia_id}', timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if 'server' in data:
+            return data['server']
+    except Exception:
+        pass
+    return 'archive.org'
+
+
 class ImageSource(ABC):
     """Abstract base class for image sources."""
 
@@ -43,8 +63,8 @@ class APIImageSource(ImageSource):
         """
         # IA API uses 0-origin page numbering
         # URL format: https://archive.org/download/{id}/page/n{page_num}_{size}.jpg
-        size_suffix = f"_{self.size}" if self.size != 'medium' else ""
-        url = f"https://archive.org/download/{ia_id}/page/n{page_num}{size_suffix}.jpg"
+        # Archive.org CDN handles routing to appropriate server efficiently
+        url = f"https://archive.org/download/{ia_id}/page/n{page_num}_{self.size}.jpg"
 
         response = requests.get(url, timeout=30)
         response.raise_for_status()
@@ -169,6 +189,7 @@ def download_and_convert_page(ia_id: str,
                              autocontrast: bool = False,
                              cutoff: Optional[int] = None,
                              preserve_tone: bool = False,
+                             server: Optional[str] = None,
                              logger: Optional[Logger] = None) -> None:
     """High-level function to download and convert a page image.
 
@@ -182,6 +203,7 @@ def download_and_convert_page(ia_id: str,
         autocontrast: Enable autocontrast
         cutoff: Autocontrast cutoff (0-100)
         preserve_tone: Preserve tone in autocontrast
+        server: Optional server hostname for faster downloads
         logger: Optional logger instance
 
     Raises:
