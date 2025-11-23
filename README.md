@@ -22,7 +22,7 @@ uv run ia-utils --help
 - `get-page` - Download and convert a single page image
 - `get-pages` - Download and convert multiple page images (batch)
 - `get-pdf` - Download PDF from IA document
-- `search` - Full-text search a catalog database
+- `search-catalog` - Full-text search a catalog database
 - `rebuild-catalog` - Rebuild text indexes in existing catalog
 
 ## Development
