@@ -1,6 +1,6 @@
 """Internet Archive API client operations."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Iterable, List
 import json
 import requests
 import internetarchive as ia
@@ -60,7 +60,7 @@ def download_file(ia_id: str, filename: str, logger: Optional[Logger] = None,
 
         # Build download URL from archive.org
         url = f"https://archive.org/download/{ia_id}/{filename}"
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=120)
         response.raise_for_status()
         content = response.content
 
@@ -128,3 +128,70 @@ def get_files(ia_id: str) -> list:
     """
     item = get_item(ia_id)
     return item.files_list()
+
+
+def search_items(query: str,
+                 *,
+                 fields: Optional[Iterable[str]] = None,
+                 sorts: Optional[Iterable[str]] = None,
+                 page: int = 1,
+                 rows: int = 20,
+                 params: Optional[Dict[str, Any]] = None,
+                 logger: Optional[Logger] = None,
+                 verbose: bool = False) -> Dict[str, Any]:
+    """Search Archive.org items with pagination support.
+
+    Args:
+        query: Advancedsearch query string (Lucene syntax).
+        fields: Metadata fields to include in results.
+        sorts: Sort expressions (e.g. "date desc").
+        page: Page number (1-indexed).
+        rows: Number of rows per page.
+        params: Additional query parameters passed to IA.
+        logger: Optional logger for diagnostics.
+        verbose: Whether to emit verbose progress messages.
+
+    Returns:
+        Dict with total hit count, requested page metadata, and result rows.
+    """
+    if page < 1:
+        raise ValueError("page must be >= 1")
+    if rows < 1:
+        raise ValueError("rows must be >= 1")
+
+    if logger is None:
+        logger = Logger(verbose=verbose)
+
+    base_params: Dict[str, Any] = {'page': page, 'rows': rows}
+    if params:
+        base_params.update(params)
+
+    try:
+        if verbose:
+            logger.progress(f"Searching Internet Archive (page {page}, rows {rows})...", nl=False)
+        search = ia.search_items(
+            query,
+            fields=list(fields) if fields else None,
+            sorts=list(sorts) if sorts else None,
+            params=base_params
+        )
+        results: List[Dict[str, Any]] = []
+        for idx, item in enumerate(search):
+            results.append(item)
+            if idx + 1 >= rows:
+                break
+        total = getattr(search, 'num_found', len(results))
+        if verbose:
+            logger.progress_done(f"✓ ({total} total)")
+        return {
+            'query': query,
+            'page': page,
+            'rows': rows,
+            'total': total,
+            'results': results,
+        }
+    except Exception as exc:
+        if verbose:
+            logger.progress_fail()
+        logger.error(f"Internet Archive search failed: {exc}")
+        raise
