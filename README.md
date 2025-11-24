@@ -23,6 +23,7 @@ uv run ia-utils --help
 - `get-pages` - Download and convert multiple page images (batch)
 - `get-pdf` - Download PDF from IA document
 - `search-catalog` - Full-text search a catalog database
+- `search-ia` - Query Internet Archive metadata with advanced filters (`--query`, `--field`/`--field *`, formats records/table/JSON/CSV/JSONL, `--stats-only`)
 - `rebuild-catalog` - Rebuild text indexes in existing catalog
 
 ## Development
