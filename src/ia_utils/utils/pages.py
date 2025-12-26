@@ -20,8 +20,9 @@ def extract_ia_id_and_page(input_str: str) -> Tuple[str, Optional[int], Optional
     """Extract IA ID and optional page number from URL or ID string.
 
     Handles formats like:
-    - https://archive.org/details/b31362138/page/404/ (book page)
-    - https://archive.org/details/b31362138/page/n404/ (sequential page, 0-origin)
+    - https://archive.org/details/b31362138/page/leaf5/ (leaf number)
+    - https://archive.org/details/b31362138/page/n5/ (treated as leaf for compatibility)
+    - https://archive.org/details/b31362138/page/42/ (book page number)
     - https://archive.org/details/anatomicalatlasi00smit
     - anatomicalatlasi00smit
 
@@ -30,7 +31,7 @@ def extract_ia_id_and_page(input_str: str) -> Tuple[str, Optional[int], Optional
 
     Returns:
         Tuple of (ia_id, page_number or None, page_type or None)
-        page_type is 'page' for sequential (from /page/nXXX/) or 'book' for book pages
+        page_type is 'leaf' (physical scan order) or 'book' (printed page number)
     """
     ia_id = extract_ia_id(input_str)  # Use existing function for IA ID extraction
 
@@ -39,13 +40,18 @@ def extract_ia_id_and_page(input_str: str) -> Tuple[str, Optional[int], Optional
     page_type = None
     if '/page/' in input_str:
         try:
-            # Format: /page/404/ or /page/n404/
+            # Format: /page/leaf5/, /page/n5/, or /page/42/
             page_part = input_str.split('/page/')[-1].rstrip('/')
-            # Check if 'n' prefix is present (sequential page)
-            if page_part.startswith('n'):
-                page_type = 'page'
-                page_part = page_part[1:]
+            # Check if 'leaf' prefix is present
+            if page_part.startswith('leaf'):
+                page_type = 'leaf'
+                page_part = page_part[4:]  # Remove 'leaf' prefix
+            # Treat 'n' prefix as leaf for backwards compatibility
+            elif page_part.startswith('n'):
+                page_type = 'leaf'
+                page_part = page_part[1:]  # Remove 'n' prefix
             else:
+                # Bare number is a book page reference
                 page_type = 'book'
             page_num = int(page_part)
         except (ValueError, IndexError):
@@ -65,35 +71,33 @@ def normalize_page_number(page_input: str) -> int:
     return int(page_input)
 
 
-def get_page_number_for_jp2(page_num: int, page_type: str,
-                            ia_id: Optional[str] = None,
-                            db: Optional[sqlite_utils.Database] = None) -> int:
-    """Convert from leaf/book page to sequential page number for jp2 files.
+def get_leaf_num(page_num: int, page_type: str,
+                 ia_id: Optional[str] = None,
+                 db: Optional[sqlite_utils.Database] = None) -> int:
+    """Convert a page reference to a leaf number.
 
-    JP2 files in the archive are numbered sequentially (1-indexed): _0001.jp2, _0002.jp2, etc.
+    Leaf numbers map directly to JP2 files and image API URLs:
+    - leaf N = _{N:04d}.jp2
+    - leaf N = leaf{N}_medium.jpg
 
     Args:
-        page_num: The page number in the specified format
-        page_type: 'page' (sequential), 'leaf' (physical page), or 'book' (book page number)
-        ia_id: Internet Archive identifier (needed for book/leaf lookups)
+        page_num: The page number
+        page_type: 'leaf' (use directly) or 'book' (lookup required)
+        ia_id: Internet Archive identifier (needed for book page lookups)
         db: Optional sqlite_utils Database object (uses page_numbers table if available)
 
     Returns:
-        The sequential page number (1-indexed) for the jp2 filename
+        Leaf number for image fetching
 
     Raises:
         ValueError: If conversion fails
     """
-    if page_type == 'page':
-        # 'page' type is already the sequential page number
-        return page_num
-
-    elif page_type == 'leaf':
-        # leaf number maps directly to sequential page number
+    if page_type == 'leaf':
+        # Leaf number is the canonical format - use directly
         return page_num
 
     elif page_type == 'book':
-        # 'book' page numbers need to be looked up in page_numbers table
+        # Book page numbers need to be looked up in page_numbers table
         if db:
             try:
                 result = db.execute(
@@ -103,9 +107,9 @@ def get_page_number_for_jp2(page_num: int, page_type: str,
                 if result:
                     return result[0]
                 else:
-                    raise ValueError(f"Book page number {page_num} not found in page_numbers table")
+                    raise ValueError(f"Book page '{page_num}' not found in page_numbers table")
             except Exception as e:
-                raise ValueError(f"Could not look up book page number {page_num}: {e}")
+                raise ValueError(f"Could not look up book page '{page_num}': {e}")
         elif ia_id:
             # Download page_numbers.json on the fly
             try:
@@ -114,14 +118,14 @@ def get_page_number_for_jp2(page_num: int, page_type: str,
                     for page_entry in page_data['pages']:
                         if page_entry.get('pageNumber') == str(page_num):
                             return page_entry['leafNum']
-                raise ValueError(f"Book page number {page_num} not found in page_numbers.json")
+                raise ValueError(f"Book page '{page_num}' not found in page_numbers.json")
             except Exception as e:
-                raise ValueError(f"Could not look up book page number {page_num}: {e}")
+                raise ValueError(f"Could not look up book page '{page_num}': {e}")
         else:
             raise ValueError("Book page lookup requires either catalog database or IA ID")
 
     else:
-        raise ValueError(f"Unknown page_type: {page_type}")
+        raise ValueError(f"Unknown page_type: {page_type}. Use 'leaf' or 'book'.")
 
 
 def parse_page_range(range_str: str) -> List[int]:

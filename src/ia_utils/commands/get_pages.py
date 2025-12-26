@@ -67,8 +67,8 @@ def parse_page_range(range_str: str) -> list:
               help='Output filename prefix (can include directory path)')
 @click.option('-c', '--catalog', type=click.Path(exists=True),
               help='Catalog database path for fast page lookups')
-@click.option('--num-type', type=click.Choice(['page', 'leaf', 'book']), default='page',
-              help='Number type (default: page)')
+@click.option('--num-type', type=click.Choice(['leaf', 'book']), default='leaf',
+              help='Number type (default: leaf)')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
               default='medium', help='Image size (default: medium)')
 @click.option('--format', type=click.Choice(['jp2', 'jpg', 'png']),
@@ -103,8 +103,7 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
     - With path: -p ./pages/atlas (outputs ./pages/atlas_0001.jpg, etc.)
 
     NUMBER TYPES:
-    - page: Sequential page number (default, 0-origin)
-    - leaf: Physical leaf/page number
+    - leaf: Physical leaf/scan number (default, maps directly to images)
     - book: Book page number (looks up via catalog or downloads page_numbers.json)
 
     IMAGE SIZES:
@@ -122,7 +121,7 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
 
     Examples:
         ia-utils get-pages anatomicalatlasi00smit -r 1-7 -p pages/atlas
-        ia-utils get-pages b31362138 -r 1-100,150-160 -p atlas --format jpg --quality 85
+        ia-utils get-pages b31362138 -r 1-100,150-160 -p atlas --num-type book --format jpg
         ia-utils -v get-pages anatomicalatlasi00smit -r 1-7,21,25 -p ./output/page
     """
     verbose = ctx.obj.get('verbose', False)
@@ -203,26 +202,15 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
 
         for idx, page_num in enumerate(pages, 1):
             try:
-                # Convert to sequential page number if needed
+                # Convert to leaf number (canonical format for all image fetching)
                 try:
-                    if num_type in ('leaf', 'book'):
-                        sequential_page = page_utils.get_page_number_for_jp2(page_num, num_type, ia_id=ia_id, db=db)
-                    else:
-                        sequential_page = page_num
+                    leaf_num = page_utils.get_leaf_num(page_num, num_type, ia_id=ia_id, db=db)
                 except ValueError as e:
                     logger.error(f"Page {page_num}: {e}")
                     failed += 1
                     continue
 
-                # Adjust for API pages (0-indexed)
-                if size == 'original':
-                    # JP2 is 1-indexed, keep as-is
-                    api_page = sequential_page
-                else:
-                    # API is 0-indexed
-                    api_page = sequential_page - 1 if num_type != 'page' else sequential_page
-
-                # Generate output filename
+                # Generate output filename (uses input page_num for consistency)
                 output_filename = f"{prefix}_{page_num:04d}.{output_format}"
                 output_path = Path(output_filename)
 
@@ -234,12 +222,13 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
                     continue
 
                 if verbose:
-                    logger.progress(f"  [{idx}/{len(pages)}] Page {page_num}...", nl=False)
+                    leaf_info = f"leaf {leaf_num}" if num_type == 'book' else f"{page_num}"
+                    logger.progress(f"  [{idx}/{len(pages)}] {leaf_info}...", nl=False)
 
-                # Download and convert
+                # Download and convert using leaf number
                 image.download_and_convert_page(
                     ia_id,
-                    api_page,
+                    leaf_num,
                     output_path,
                     size=size,
                     output_format=output_format,

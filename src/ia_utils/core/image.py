@@ -35,8 +35,8 @@ class ImageSource(ABC):
     """Abstract base class for image sources."""
 
     @abstractmethod
-    def fetch(self, ia_id: str, page_num: int) -> bytes:
-        """Fetch raw image bytes for a page."""
+    def fetch(self, ia_id: str, leaf_num: int) -> bytes:
+        """Fetch raw image bytes for a page by leaf number."""
         pass
 
 
@@ -48,12 +48,12 @@ class APIImageSource(ImageSource):
             raise ValueError(f"Invalid API size: {size}")
         self.size = size
 
-    def fetch(self, ia_id: str, page_num: int) -> bytes:
+    def fetch(self, ia_id: str, leaf_num: int) -> bytes:
         """Fetch image from IA page API.
 
         Args:
             ia_id: Internet Archive identifier
-            page_num: Sequential page number (0-origin for API)
+            leaf_num: Leaf number (physical scan order)
 
         Returns:
             Image bytes
@@ -61,10 +61,9 @@ class APIImageSource(ImageSource):
         Raises:
             Exception: If download fails
         """
-        # IA API uses 0-origin page numbering
-        # URL format: https://archive.org/download/{id}/page/n{page_num}_{size}.jpg
-        # Archive.org CDN handles routing to appropriate server efficiently
-        url = f"https://archive.org/download/{ia_id}/page/n{page_num}_{self.size}.jpg"
+        # Use leaf-based URL format for stable addressing
+        # URL format: https://archive.org/download/{id}/page/leaf{leaf_num}_{size}.jpg
+        url = f"https://archive.org/download/{ia_id}/page/leaf{leaf_num}_{self.size}.jpg"
 
         response = requests.get(url, timeout=30)
         response.raise_for_status()
@@ -74,12 +73,12 @@ class APIImageSource(ImageSource):
 class JP2ImageSource(ImageSource):
     """Fetch images from jp2.zip using remotezip (original quality)."""
 
-    def fetch(self, ia_id: str, page_num: int) -> bytes:
+    def fetch(self, ia_id: str, leaf_num: int) -> bytes:
         """Fetch image from JP2 archive.
 
         Args:
             ia_id: Internet Archive identifier
-            page_num: Sequential page number (1-origin for JP2)
+            leaf_num: Leaf number (physical scan order, maps directly to JP2 files)
 
         Returns:
             Image bytes
@@ -87,8 +86,8 @@ class JP2ImageSource(ImageSource):
         Raises:
             Exception: If download fails
         """
-        # Format page number as 4-digit zero-padded for jp2 archive
-        jp2_page_num = f"{page_num:04d}"
+        # JP2 files use leaf numbering: leaf N = _{N:04d}.jp2
+        jp2_page_num = f"{leaf_num:04d}"
         jp2_filename = f"{ia_id}_{jp2_page_num}.jp2"
         # Files are stored in subdirectory {ia_id}_jp2/
         jp2_path_in_zip = f"{ia_id}_jp2/{jp2_filename}"
@@ -107,14 +106,14 @@ class JP2ImageSource(ImageSource):
                     file_in_zip = jp2_filename
 
                 if not file_in_zip:
-                    raise FileNotFoundError(f"Page {page_num} ({jp2_filename}) not found in archive")
+                    raise FileNotFoundError(f"Leaf {leaf_num} ({jp2_filename}) not found in archive")
 
                 # Read the jp2 file into memory
                 jp2_data = rz.read(file_in_zip)
                 return jp2_data
 
         except Exception as e:
-            raise Exception(f"Failed to fetch JP2 page {page_num}: {e}")
+            raise Exception(f"Failed to fetch JP2 for leaf {leaf_num}: {e}")
 
 
 def process_image(image_bytes: bytes,
@@ -181,7 +180,7 @@ def process_image(image_bytes: bytes,
 
 
 def download_and_convert_page(ia_id: str,
-                             page_num: int,
+                             leaf_num: int,
                              output_path: Path,
                              size: Literal['small', 'medium', 'large', 'original'] = 'medium',
                              output_format: str = 'jpg',
@@ -195,7 +194,7 @@ def download_and_convert_page(ia_id: str,
 
     Args:
         ia_id: Internet Archive identifier
-        page_num: Sequential page number
+        leaf_num: Leaf number (physical scan order)
         output_path: Path to write output file
         size: Image size (small, medium, large, original)
         output_format: Output format (jpg, png, jp2)
@@ -226,7 +225,7 @@ def download_and_convert_page(ia_id: str,
     # Download image
     logger.progress(f"   Downloading {size} image...", nl=False)
     try:
-        image_bytes = source.fetch(ia_id, page_num)
+        image_bytes = source.fetch(ia_id, leaf_num)
         size_mb = len(image_bytes) / 1024 / 1024
         logger.progress_done(f"✓ ({size_mb:.1f} MB)")
     except Exception as e:

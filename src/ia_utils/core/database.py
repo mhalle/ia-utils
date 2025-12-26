@@ -202,6 +202,7 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
         CREATE INDEX IF NOT EXISTS idx_language ON text_blocks(language);
         CREATE INDEX IF NOT EXISTS idx_confidence ON text_blocks(avg_confidence);
         CREATE INDEX IF NOT EXISTS idx_font_size ON text_blocks(avg_font_size);
+        CREATE INDEX IF NOT EXISTS idx_book_page ON page_numbers(book_page_number);
     """)
     logger.progress_done("✓")
 

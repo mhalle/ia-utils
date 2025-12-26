@@ -14,7 +14,7 @@ from ia_utils.utils import pages as page_utils
 @click.argument('identifier')
 @click.option('-c', '--catalog', type=click.Path(exists=True), help='Catalog database path')
 @click.option('-n', '--page-num', type=str, help='Page number (optional if in URL)')
-@click.option('--num-type', type=click.Choice(['page', 'leaf', 'book']), help='Number type (default: page, or extracted from URL)')
+@click.option('--num-type', type=click.Choice(['leaf', 'book']), help='Number type (default: leaf)')
 @click.option('-o', '--output', type=str, help='Output file path (suffix determines format)')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
               default='medium', help='Image size (default: medium)')
@@ -30,14 +30,14 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     IDENTIFIER can be an IA ID or full URL:
     - anatomicalatlasi00smit
     - https://archive.org/details/anatomicalatlasi00smit
-    - https://archive.org/details/b31362138/page/n404/ (sequential page)
-    - https://archive.org/details/b31362138/page/404/ (book page number)
+    - https://archive.org/details/b31362138/page/leaf5/ (leaf number)
+    - https://archive.org/details/b31362138/page/42/ (book page number)
 
     PAGE NUMBER & TYPE:
-    - Extract from URL if available (/page/nXXX/ or /page/XXX/)
+    - Extract from URL if available (/page/leafN/ or /page/N/)
     - Override with -n/--page-num and --num-type if provided
-    - Default to 'page' type if not specified
-    - Priority: Command-line flags > URL extraction > defaults
+    - Default to 'leaf' type (physical scan order)
+    - Use 'book' for printed page numbers (requires lookup)
 
     CATALOG (-c, optional):
     - Speeds up book page lookups (uses cached page_numbers table)
@@ -45,7 +45,7 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     - If not provided, page_numbers.json downloaded on-demand for book pages
 
     OUTPUT:
-    - Default: {ia_id}_{page:04d}.{format}
+    - Default: {ia_id}_{leaf:04d}.{format}
     - With -o: Use provided path
     - Format: Inferred from suffix (.jpg, .png, .jp2) or --format flag
 
@@ -58,8 +58,8 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     Examples:
         ia-utils get-page anatomicalatlasi00smit -n 5 -o page.png
         ia-utils get-page anatomicalatlasi00smit -n 5 --size large
-        ia-utils get-page https://archive.org/details/b31362138/page/n404/ -o page.png
-        ia-utils -v get-page b31362138 -n 42 -c catalog.sqlite --size original
+        ia-utils get-page https://archive.org/details/b31362138/page/leaf5/ -o page.png
+        ia-utils -v get-page b31362138 -n 42 --num-type book -c catalog.sqlite
         ia-utils get-page anatomicalatlasi00smit -n 5 --size original --autocontrast --quality 90
     """
     verbose = ctx.obj.get('verbose', False)
@@ -97,11 +97,11 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     if page_from_url is not None and not page_num:
         page_num = str(page_from_url)
 
-    # Handle page type: URL extraction → command-line override (with 'page' as default)
+    # Handle page type: URL extraction → command-line override (default: 'leaf')
     if page_type_from_url and not num_type:
         num_type = page_type_from_url
     elif not num_type:
-        num_type = 'page'
+        num_type = 'leaf'
 
     # Validate that we have a page number
     if not page_num:
@@ -113,6 +113,13 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
         page_number_int = page_utils.normalize_page_number(page_num)
     except ValueError:
         logger.error(f"Invalid page number: {page_num}")
+        sys.exit(1)
+
+    # Convert to leaf number (canonical format for all image fetching)
+    try:
+        leaf_num = page_utils.get_leaf_num(page_number_int, num_type, ia_id=ia_id, db=db)
+    except ValueError as e:
+        logger.error(str(e))
         sys.exit(1)
 
     # Determine output format and path
@@ -131,46 +138,21 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
             else:
                 output_format = format or 'jpg'
     else:
-        # Default filename
+        # Default filename uses leaf number
         output_format = format or 'jpg'
-        default_filename = f"{ia_id}_{page_number_int:04d}.{output_format}"
+        default_filename = f"{ia_id}_{leaf_num:04d}.{output_format}"
         output_path = Path.cwd() / default_filename
 
     if verbose:
         logger.section(f"Downloading page from: {ia_id}")
-        logger.info(f"   Page: {page_number_int} (type: {num_type})")
+        logger.info(f"   Leaf: {leaf_num}" + (f" (from {num_type} {page_number_int})" if num_type == 'book' else ""))
         logger.info(f"   Size: {size}")
         logger.info(f"   Format: {output_format}")
-
-    # For API images, page numbering is 0-origin sequential
-    # For JP2 (original), page numbering is 1-origin sequential (needs conversion if using leaf/book)
-    if size == 'original':
-        # Convert to sequential page number if needed
-        try:
-            sequential_page = page_utils.get_page_number_for_jp2(page_number_int, num_type, ia_id=ia_id, db=db)
-        except ValueError as e:
-            logger.error(str(e))
-            sys.exit(1)
-        # JP2 pages are 1-indexed, but API expects 0-indexed, so keep as is for JP2
-        api_page = sequential_page - 1 if num_type != 'page' else sequential_page
-    else:
-        # API pages are 0-indexed, so use page_number_int directly for sequential pages
-        # For book/leaf, we need to convert first
-        if num_type in ('leaf', 'book'):
-            try:
-                sequential_page = page_utils.get_page_number_for_jp2(page_number_int, num_type, ia_id=ia_id, db=db)
-                api_page = sequential_page - 1  # Convert 1-indexed to 0-indexed for API
-            except ValueError as e:
-                logger.error(str(e))
-                sys.exit(1)
-        else:
-            # Already sequential
-            api_page = page_number_int
 
     try:
         image.download_and_convert_page(
             ia_id,
-            api_page,
+            leaf_num,
             output_path,
             size=size,
             output_format=output_format,
