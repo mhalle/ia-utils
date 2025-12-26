@@ -59,7 +59,7 @@ def _normalize_field_value(value: Any) -> str:
     return str(value)
 
 
-def _build_query(base_query: str, media_types: Iterable[str], collections: Iterable[str], languages: Iterable[str]) -> str:
+def _build_query(base_query: str, media_types: Iterable[str], collections: Iterable[str], languages: Iterable[str], formats: Iterable[str]) -> str:
     """Compose final IA query string including optional filters."""
     components = [f"({base_query.strip()})" if base_query.strip() else '*:*']
 
@@ -76,6 +76,9 @@ def _build_query(base_query: str, media_types: Iterable[str], collections: Itera
     for lang in languages:
         if lang:
             components.append(f"language:{_quote(lang)}")
+    for fmt in formats:
+        if fmt:
+            components.append(f"format:{_quote(fmt)}")
     return ' AND '.join(components)
 
 
@@ -315,11 +318,12 @@ def _build_stats_payload(query: str,
 @click.option('-s', '--sort', 'sorts', multiple=True, help='Sort results (field[:asc|desc]). Repeat for multiple sorts.')
 @click.option('-p', '--page', type=int, default=1, show_default=True, help='Result page (1-indexed).')
 @click.option('-l', '--limit', type=int, default=20, show_default=True, help='Number of results per page.')
+@click.option('-F', '--format', 'formats', multiple=True, help='Filter by file format (repeatable).')
 @click.option('-o', '--output', type=click.Path(dir_okay=False), help='Write results to file (format inferred from extension).')
-@click.option('--format', 'output_format', type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']), help='Force output format.')
+@click.option('--output-format', 'output_format', type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']), help='Force output format.')
 @click.option('--stats-only', is_flag=True, help='Emit only summary statistics in the requested output format.')
 @click.pass_context
-def search_ia(ctx, query, media_types, collections, languages, extra_fields, sorts, page, limit, output, output_format, stats_only):
+def search_ia(ctx, query, media_types, collections, languages, formats, extra_fields, sorts, page, limit, output, output_format, stats_only):
     """Search Internet Archive metadata and display matching items."""
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -334,7 +338,7 @@ def search_ia(ctx, query, media_types, collections, languages, extra_fields, sor
         combined_fields = list(dict.fromkeys(base_fields + (['*'] if include_all else [])))
     else:
         combined_fields = list(DEFAULT_FIELDS)
-    final_query = _build_query(query, media_types, collections, languages)
+    final_query = _build_query(query, media_types, collections, languages, formats)
     parsed_sorts = _parse_sorts(sorts)
     output_path = Path(output) if output else None
     format_name = _determine_format(output_format, output_path)
