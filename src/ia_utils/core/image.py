@@ -245,4 +245,4 @@ def download_and_convert_page(ia_id: str,
         logger=logger
     )
 
-    logger.info(f"   Saved: {output_path.name}")
+    logger.verbose_info(f"   Saved: {output_path.name}")
