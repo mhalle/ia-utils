@@ -307,7 +307,7 @@ def _build_stats_payload(query: str,
 @click.option('-q', '--query', required=True, help='Internet Archive search query (Lucene syntax).')
 @click.option('-m', '--media-type', 'media_types', multiple=True, help='Filter by media type (repeatable).')
 @click.option('-c', '--collection', 'collections', multiple=True, help='Filter by collection (repeatable).')
-@click.option('-f', '--field', 'extra_fields', multiple=True, help='Request additional metadata fields (repeatable, use * for all).')
+@click.option('-f', '--field', 'extra_fields', multiple=True, help='Fields to show (repeatable). Use "default" for defaults, "*" for all.')
 @click.option('-s', '--sort', 'sorts', multiple=True, help='Sort results (field[:asc|desc]). Repeat for multiple sorts.')
 @click.option('-p', '--page', type=int, default=1, show_default=True, help='Result page (1-indexed).')
 @click.option('-l', '--limit', type=int, default=20, show_default=True, help='Number of results per page.')
@@ -322,10 +322,11 @@ def search_ia(ctx, query, media_types, collections, extra_fields, sorts, page, l
 
     extra_list = list(extra_fields)
     include_all = '*' in extra_list
-    filtered_extras = [field for field in extra_list if field != '*']
+    include_default = 'default' in extra_list
+    filtered_extras = [f for f in extra_list if f not in ('*', 'default')]
     # If --field is specified, use only those fields (plus identifier); otherwise use defaults
     if extra_list:
-        base_fields = ['identifier'] + filtered_extras
+        base_fields = (DEFAULT_FIELDS if include_default else ['identifier']) + filtered_extras
         combined_fields = list(dict.fromkeys(base_fields + (['*'] if include_all else [])))
     else:
         combined_fields = list(DEFAULT_FIELDS)
