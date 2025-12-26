@@ -323,7 +323,12 @@ def search_ia(ctx, query, media_types, collections, extra_fields, sorts, page, l
     extra_list = list(extra_fields)
     include_all = '*' in extra_list
     filtered_extras = [field for field in extra_list if field != '*']
-    combined_fields = list(dict.fromkeys(DEFAULT_FIELDS + filtered_extras + (['*'] if include_all else [])))
+    # If --field is specified, use only those fields (plus identifier); otherwise use defaults
+    if extra_list:
+        base_fields = ['identifier'] + filtered_extras
+        combined_fields = list(dict.fromkeys(base_fields + (['*'] if include_all else [])))
+    else:
+        combined_fields = list(DEFAULT_FIELDS)
     final_query = _build_query(query, media_types, collections)
     parsed_sorts = _parse_sorts(sorts)
     output_path = Path(output) if output else None
