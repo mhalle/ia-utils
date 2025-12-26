@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional, Literal
 from io import BytesIO
 import requests
-from remotezip import RemoteZip
 from PIL import Image, ImageOps
 
 from ia_utils.utils.logger import Logger
@@ -71,10 +70,15 @@ class APIImageSource(ImageSource):
 
 
 class JP2ImageSource(ImageSource):
-    """Fetch images from jp2.zip using remotezip (original quality)."""
+    """Fetch images from jp2.zip using direct URL (original quality).
+
+    Uses Internet Archive's ZIP-as-directory URL format which allows
+    direct access to individual files within a ZIP archive without
+    downloading the entire archive.
+    """
 
     def fetch(self, ia_id: str, leaf_num: int) -> bytes:
-        """Fetch image from JP2 archive.
+        """Fetch image from JP2 archive using direct URL.
 
         Args:
             ia_id: Internet Archive identifier
@@ -89,29 +93,19 @@ class JP2ImageSource(ImageSource):
         # JP2 files use leaf numbering: leaf N = _{N:04d}.jp2
         jp2_page_num = f"{leaf_num:04d}"
         jp2_filename = f"{ia_id}_{jp2_page_num}.jp2"
-        # Files are stored in subdirectory {ia_id}_jp2/
-        jp2_path_in_zip = f"{ia_id}_jp2/{jp2_filename}"
 
-        # IA jp2.zip URL
-        zip_url = f"https://archive.org/download/{ia_id}/{ia_id}_jp2.zip"
+        # Use IA's ZIP-as-directory URL format for direct file access
+        # Format: https://archive.org/download/{id}/{id}_jp2.zip/{id}_jp2/{id}_{leaf:04d}.jp2
+        url = f"https://archive.org/download/{ia_id}/{ia_id}_jp2.zip/{ia_id}_jp2/{jp2_filename}"
 
         try:
-            # Use remotezip to fetch just this one file
-            with RemoteZip(zip_url) as rz:
-                # Check if file exists in zip (try both with and without subdirectory)
-                file_in_zip = None
-                if jp2_path_in_zip in rz.namelist():
-                    file_in_zip = jp2_path_in_zip
-                elif jp2_filename in rz.namelist():
-                    file_in_zip = jp2_filename
-
-                if not file_in_zip:
-                    raise FileNotFoundError(f"Leaf {leaf_num} ({jp2_filename}) not found in archive")
-
-                # Read the jp2 file into memory
-                jp2_data = rz.read(file_in_zip)
-                return jp2_data
-
+            response = requests.get(url, timeout=60)
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                raise FileNotFoundError(f"Leaf {leaf_num} ({jp2_filename}) not found in archive")
+            raise Exception(f"Failed to fetch JP2 for leaf {leaf_num}: {e}")
         except Exception as e:
             raise Exception(f"Failed to fetch JP2 for leaf {leaf_num}: {e}")
 
@@ -138,6 +132,17 @@ def process_image(image_bytes: bytes,
     """
     if logger is None:
         logger = Logger(verbose=False)
+
+    # Check if any transformations are requested
+    needs_processing = autocontrast or cutoff is not None or preserve_tone
+
+    # For JP2 output with no processing, just write raw bytes
+    # (PIL cannot write JP2 format)
+    if output_format.lower() == 'jp2' and not needs_processing:
+        logger.progress("   Saving JP2...", nl=False)
+        output_path.write_bytes(image_bytes)
+        logger.progress_done("✓")
+        return
 
     logger.progress("   Processing image...", nl=False)
 
