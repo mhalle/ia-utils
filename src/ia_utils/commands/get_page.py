@@ -11,7 +11,7 @@ from ia_utils.utils import pages as page_utils
 
 
 @click.command()
-@click.argument('identifier')
+@click.argument('identifier', required=False)
 @click.option('-l', '--leaf', type=int, help='Leaf number (physical scan order)')
 @click.option('-b', '--book', type=int, help='Book page number (printed page, requires lookup)')
 @click.option('-c', '--catalog', type=click.Path(exists=True), help='Catalog database path')
@@ -27,21 +27,21 @@ from ia_utils.utils import pages as page_utils
 def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality, autocontrast, cutoff, preserve_tone):
     """Download and optionally convert a page image from Internet Archive.
 
-    IDENTIFIER can be an IA ID or full URL:
-    - anatomicalatlasi00smit
-    - https://archive.org/details/anatomicalatlasi00smit
-    - https://archive.org/details/b31362138/page/leaf5/ (leaf number)
-    - https://archive.org/details/b31362138/page/42/ (book page number)
+    IDENTIFIER (optional if -c provided):
+    - IA ID: anatomicalatlasi00smit
+    - URL: https://archive.org/details/anatomicalatlasi00smit
+    - URL with page: https://archive.org/details/b31362138/page/leaf5/
+    - Omit if using -c (catalog contains IA ID)
 
     PAGE NUMBER:
     - Use -l/--leaf for physical scan number (direct, fast)
     - Use -b/--book for printed page number (requires lookup)
     - Can also extract from URL (/page/leafN/ or /page/N/)
 
-    CATALOG (-c, optional):
+    CATALOG (-c):
+    - Required if IDENTIFIER is omitted
     - Speeds up book page lookups (uses cached page_numbers table)
-    - Validates IA ID matches if identifier is a URL
-    - If not provided, page_numbers.json downloaded on-demand for book pages
+    - Validates IA ID matches if identifier is also provided
 
     OUTPUT:
     - Default: {ia_id}_{leaf:04d}.{format}
@@ -56,16 +56,19 @@ def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality
 
     Examples:
         ia-utils get-page anatomicalatlasi00smit -l 5 -o page.png
-        ia-utils get-page anatomicalatlasi00smit -l 5 --size large
-        ia-utils get-page https://archive.org/details/b31362138/page/leaf5/ -o page.png
-        ia-utils get-page b31362138 -b 42 -c catalog.sqlite
-        ia-utils get-page anatomicalatlasi00smit -l 5 --size original --autocontrast
+        ia-utils get-page -c catalog.sqlite -l 5 -o page.png
+        ia-utils get-page https://archive.org/details/b31362138/page/leaf5/
+        ia-utils get-page -c catalog.sqlite -b 42
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
 
-    # Extract IA ID and page info from identifier (URL or ID)
-    ia_id, page_from_url, page_type_from_url = page_utils.extract_ia_id_and_page(identifier)
+    # Extract IA ID and page info from identifier (if provided)
+    ia_id = None
+    page_from_url = None
+    page_type_from_url = None
+    if identifier:
+        ia_id, page_from_url, page_type_from_url = page_utils.extract_ia_id_and_page(identifier)
 
     # Load catalog if provided
     db = None
@@ -79,7 +82,7 @@ def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
             ia_id_from_catalog = metadata[0]['ia_identifier']
-            # Verify IA ID matches if we extracted one from URL
+            # Verify IA ID matches if identifier was also provided
             if ia_id and ia_id != ia_id_from_catalog:
                 logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")
                 sys.exit(1)
@@ -89,7 +92,7 @@ def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality
             sys.exit(1)
 
     if not ia_id:
-        logger.error("Could not determine IA ID from identifier")
+        logger.error("IDENTIFIER required (or use -c with catalog)")
         sys.exit(1)
 
     # Validate mutually exclusive options

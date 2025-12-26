@@ -60,7 +60,7 @@ def parse_page_range(range_str: str) -> list:
 
 
 @click.command()
-@click.argument('identifier')
+@click.argument('identifier', required=False)
 @click.option('-l', '--leaf', type=str, help='Leaf range (e.g., 1-7,21,25)')
 @click.option('-b', '--book', type=str, help='Book page range (e.g., 100-150)')
 @click.option('-p', '--prefix', required=True, type=str,
@@ -86,9 +86,10 @@ def get_pages(ctx, identifier, leaf, book, prefix, catalog, size, format,
               quality, autocontrast, cutoff, preserve_tone, skip_existing):
     """Download and optionally convert multiple page images from Internet Archive.
 
-    IDENTIFIER can be an IA ID or full URL:
-    - anatomicalatlasi00smit
-    - https://archive.org/details/anatomicalatlasi00smit
+    IDENTIFIER (optional if -c provided):
+    - IA ID: anatomicalatlasi00smit
+    - URL: https://archive.org/details/anatomicalatlasi00smit
+    - Omit if using -c (catalog contains IA ID)
 
     PAGE RANGE (one required):
     - Use -l/--leaf for physical scan numbers (direct, fast)
@@ -119,14 +120,16 @@ def get_pages(ctx, identifier, leaf, book, prefix, catalog, size, format,
 
     Examples:
         ia-utils get-pages anatomicalatlasi00smit -l 1-7 -p pages/atlas
-        ia-utils get-pages b31362138 -b 100-150 -p atlas -c catalog.sqlite
-        ia-utils -v get-pages anatomicalatlasi00smit -l 1-7,21,25 -p ./output/page
+        ia-utils get-pages -c catalog.sqlite -l 1-7 -p pages/atlas
+        ia-utils get-pages -c catalog.sqlite -b 100-150 -p atlas
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
 
-    # Extract IA ID from identifier
-    ia_id = page_utils.extract_ia_id(identifier)
+    # Extract IA ID from identifier (if provided)
+    ia_id = None
+    if identifier:
+        ia_id = page_utils.extract_ia_id(identifier)
 
     # Load catalog if provided
     db = None
@@ -140,7 +143,7 @@ def get_pages(ctx, identifier, leaf, book, prefix, catalog, size, format,
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
             ia_id_from_catalog = metadata[0]['ia_identifier']
-            # Verify IA ID matches if we extracted one from URL
+            # Verify IA ID matches if identifier was also provided
             if ia_id and ia_id != ia_id_from_catalog:
                 logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")
                 sys.exit(1)
@@ -150,7 +153,7 @@ def get_pages(ctx, identifier, leaf, book, prefix, catalog, size, format,
             sys.exit(1)
 
     if not ia_id:
-        logger.error("Could not determine IA ID from identifier")
+        logger.error("IDENTIFIER required (or use -c with catalog)")
         sys.exit(1)
 
     # Validate mutually exclusive options
