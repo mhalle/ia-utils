@@ -61,14 +61,12 @@ def parse_page_range(range_str: str) -> list:
 
 @click.command()
 @click.argument('identifier')
-@click.option('-r', '--range', 'page_range', required=True, type=str,
-              help='Page range (e.g., 1-7,21,25,45)')
+@click.option('-l', '--leaf', type=str, help='Leaf range (e.g., 1-7,21,25)')
+@click.option('-b', '--book', type=str, help='Book page range (e.g., 100-150)')
 @click.option('-p', '--prefix', required=True, type=str,
               help='Output filename prefix (can include directory path)')
 @click.option('-c', '--catalog', type=click.Path(exists=True),
               help='Catalog database path for fast page lookups')
-@click.option('--num-type', type=click.Choice(['leaf', 'book']), default='leaf',
-              help='Number type (default: leaf)')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
               default='medium', help='Image size (default: medium)')
 @click.option('--format', type=click.Choice(['jp2', 'jpg', 'png']),
@@ -84,7 +82,7 @@ def parse_page_range(range_str: str) -> list:
 @click.option('--skip-existing', is_flag=True,
               help='Skip pages that already exist')
 @click.pass_context
-def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, format,
+def get_pages(ctx, identifier, leaf, book, prefix, catalog, size, format,
               quality, autocontrast, cutoff, preserve_tone, skip_existing):
     """Download and optionally convert multiple page images from Internet Archive.
 
@@ -92,19 +90,19 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
     - anatomicalatlasi00smit
     - https://archive.org/details/anatomicalatlasi00smit
 
-    PAGE RANGE format (required):
-    - Single page: '-r 42'
-    - Range: '-r 1-7' (inclusive)
-    - Comma-separated: '-r 1,3,5'
-    - Mixed: '-r 1-7,21,25,45-50'
+    PAGE RANGE (one required):
+    - Use -l/--leaf for physical scan numbers (direct, fast)
+    - Use -b/--book for printed page numbers (requires lookup)
+
+    RANGE FORMAT:
+    - Single: '42'
+    - Range: '1-7' (inclusive)
+    - Comma-separated: '1,3,5'
+    - Mixed: '1-7,21,25,45-50'
 
     OUTPUT PREFIX (required):
     - Simple: -p myatlas (outputs myatlas_0001.jpg, myatlas_0002.jpg, etc.)
     - With path: -p ./pages/atlas (outputs ./pages/atlas_0001.jpg, etc.)
-
-    NUMBER TYPES:
-    - leaf: Physical leaf/scan number (default, maps directly to images)
-    - book: Book page number (looks up via catalog or downloads page_numbers.json)
 
     IMAGE SIZES:
     - small: ~100px (API, very fast)
@@ -120,9 +118,9 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
     - --skip-existing: Skip pages that already exist
 
     Examples:
-        ia-utils get-pages anatomicalatlasi00smit -r 1-7 -p pages/atlas
-        ia-utils get-pages b31362138 -r 1-100,150-160 -p atlas --num-type book --format jpg
-        ia-utils -v get-pages anatomicalatlasi00smit -r 1-7,21,25 -p ./output/page
+        ia-utils get-pages anatomicalatlasi00smit -l 1-7 -p pages/atlas
+        ia-utils get-pages b31362138 -b 100-150 -p atlas -c catalog.sqlite
+        ia-utils -v get-pages anatomicalatlasi00smit -l 1-7,21,25 -p ./output/page
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -154,6 +152,23 @@ def get_pages(ctx, identifier, page_range, prefix, catalog, num_type, size, form
     if not ia_id:
         logger.error("Could not determine IA ID from identifier")
         sys.exit(1)
+
+    # Validate mutually exclusive options
+    if leaf and book:
+        logger.error("Cannot specify both --leaf and --book")
+        sys.exit(1)
+
+    if not leaf and not book:
+        logger.error("Page range required: use -l/--leaf or -b/--book")
+        sys.exit(1)
+
+    # Determine page range and type
+    if leaf:
+        page_range = leaf
+        num_type = 'leaf'
+    else:
+        page_range = book
+        num_type = 'book'
 
     # Parse page range
     try:

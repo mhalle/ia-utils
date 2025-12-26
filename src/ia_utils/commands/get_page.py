@@ -12,9 +12,9 @@ from ia_utils.utils import pages as page_utils
 
 @click.command()
 @click.argument('identifier')
+@click.option('-l', '--leaf', type=int, help='Leaf number (physical scan order)')
+@click.option('-b', '--book', type=int, help='Book page number (printed page, requires lookup)')
 @click.option('-c', '--catalog', type=click.Path(exists=True), help='Catalog database path')
-@click.option('-n', '--page-num', type=str, help='Page number (optional if in URL)')
-@click.option('--num-type', type=click.Choice(['leaf', 'book']), help='Number type (default: leaf)')
 @click.option('-o', '--output', type=str, help='Output file path (suffix determines format)')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
               default='medium', help='Image size (default: medium)')
@@ -24,7 +24,7 @@ from ia_utils.utils import pages as page_utils
 @click.option('--cutoff', type=int, default=None, help='Autocontrast cutoff percentage (0-100, enables autocontrast if set)')
 @click.option('--preserve-tone', is_flag=True, help='Preserve tone in autocontrast (enables autocontrast)')
 @click.pass_context
-def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format, quality, autocontrast, cutoff, preserve_tone):
+def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality, autocontrast, cutoff, preserve_tone):
     """Download and optionally convert a page image from Internet Archive.
 
     IDENTIFIER can be an IA ID or full URL:
@@ -33,11 +33,10 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     - https://archive.org/details/b31362138/page/leaf5/ (leaf number)
     - https://archive.org/details/b31362138/page/42/ (book page number)
 
-    PAGE NUMBER & TYPE:
-    - Extract from URL if available (/page/leafN/ or /page/N/)
-    - Override with -n/--page-num and --num-type if provided
-    - Default to 'leaf' type (physical scan order)
-    - Use 'book' for printed page numbers (requires lookup)
+    PAGE NUMBER:
+    - Use -l/--leaf for physical scan number (direct, fast)
+    - Use -b/--book for printed page number (requires lookup)
+    - Can also extract from URL (/page/leafN/ or /page/N/)
 
     CATALOG (-c, optional):
     - Speeds up book page lookups (uses cached page_numbers table)
@@ -56,11 +55,11 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
     - original: JP2 lossless (slower, highest quality)
 
     Examples:
-        ia-utils get-page anatomicalatlasi00smit -n 5 -o page.png
-        ia-utils get-page anatomicalatlasi00smit -n 5 --size large
+        ia-utils get-page anatomicalatlasi00smit -l 5 -o page.png
+        ia-utils get-page anatomicalatlasi00smit -l 5 --size large
         ia-utils get-page https://archive.org/details/b31362138/page/leaf5/ -o page.png
-        ia-utils -v get-page b31362138 -n 42 --num-type book -c catalog.sqlite
-        ia-utils get-page anatomicalatlasi00smit -n 5 --size original --autocontrast --quality 90
+        ia-utils get-page b31362138 -b 42 -c catalog.sqlite
+        ia-utils get-page anatomicalatlasi00smit -l 5 --size original --autocontrast
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -93,26 +92,23 @@ def get_page(ctx, identifier, catalog, page_num, num_type, output, size, format,
         logger.error("Could not determine IA ID from identifier")
         sys.exit(1)
 
-    # Handle page number: URL extraction → command-line override
-    if page_from_url is not None and not page_num:
-        page_num = str(page_from_url)
-
-    # Handle page type: URL extraction → command-line override (default: 'leaf')
-    if page_type_from_url and not num_type:
-        num_type = page_type_from_url
-    elif not num_type:
-        num_type = 'leaf'
-
-    # Validate that we have a page number
-    if not page_num:
-        logger.error("-n/--page-num is required (or provide URL with /page/...)")
+    # Validate mutually exclusive options
+    if leaf is not None and book is not None:
+        logger.error("Cannot specify both --leaf and --book")
         sys.exit(1)
 
-    # Normalize page number
-    try:
-        page_number_int = page_utils.normalize_page_number(page_num)
-    except ValueError:
-        logger.error(f"Invalid page number: {page_num}")
+    # Determine page number and type from flags or URL
+    if leaf is not None:
+        page_number_int = leaf
+        num_type = 'leaf'
+    elif book is not None:
+        page_number_int = book
+        num_type = 'book'
+    elif page_from_url is not None:
+        page_number_int = page_from_url
+        num_type = page_type_from_url or 'leaf'
+    else:
+        logger.error("Page number required: use -l/--leaf or -b/--book (or provide URL with /page/...)")
         sys.exit(1)
 
     # Convert to leaf number (canonical format for all image fetching)
