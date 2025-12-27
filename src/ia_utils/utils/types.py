@@ -7,7 +7,7 @@ from typing import Optional, Literal
 @dataclass
 class TextBlock:
     """Represents a single text block from hOCR."""
-    page_id: str
+    page_id: int
     block_number: int
     hocr_id: str
     block_type: str

@@ -24,9 +24,6 @@ def get_page_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) -
     """
     results = []
     for leaf in leaf_nums:
-        # page_id is stored as zero-padded string
-        page_id = f"{leaf:06d}"
-
         # Get aggregated text for page
         sql = """
             SELECT group_concat(text, ' ') as page_text
@@ -34,7 +31,7 @@ def get_page_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) -
             WHERE page_id = ?
             ORDER BY rowid
         """
-        row = db.execute(sql, [page_id]).fetchone()
+        row = db.execute(sql, [leaf]).fetchone()
         text = row[0] if row and row[0] else ''
 
         # Get page number if available
@@ -66,9 +63,6 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
     """
     results = []
     for leaf in leaf_nums:
-        # page_id is stored as zero-padded string
-        page_id = f"{leaf:06d}"
-
         sql = """
             SELECT
                 tb.hocr_id,
@@ -81,7 +75,7 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
             WHERE tb.page_id = ?
             ORDER BY tb.rowid
         """
-        for row in db.execute(sql, [page_id]).fetchall():
+        for row in db.execute(sql, [leaf]).fetchall():
             results.append({
                 'leaf': leaf,
                 'page': row[4] or '',

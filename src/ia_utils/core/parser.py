@@ -94,11 +94,11 @@ def sort_blocks_by_position(blocks: List[Tag]) -> List[Tag]:
     return sorted(blocks, key=get_position)
 
 
-def extract_page_id(page: Tag) -> str:
-    """Extract page ID from hOCR page element."""
+def extract_page_id(page: Tag) -> int:
+    """Extract page ID (leaf number) from hOCR page element."""
     page_id = page.get('id', '')
     match = re.search(r'page_(\d+)', page_id)
-    return match.group(1) if match else ''
+    return int(match.group(1)) if match else 0
 
 
 def extract_parent_carea_id(block: Tag) -> Optional[str]:

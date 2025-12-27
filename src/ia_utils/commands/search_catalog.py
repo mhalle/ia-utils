@@ -38,7 +38,7 @@ def search_pages(db: sqlite_utils.Database, query: str, limit: int, ia_id: str) 
     """
     results = []
     for row in db.execute(sql, [query, limit]).fetchall():
-        leaf = int(row[0]) if row[0] else 0
+        leaf = row[0] or 0
         results.append({
             'leaf': leaf,
             'page': row[1] or '',
@@ -74,7 +74,7 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
     """
     results = []
     for row in db.execute(sql, [query, limit]).fetchall():
-        leaf = int(row[0]) if row[0] else 0
+        leaf = row[0] or 0
         results.append({
             'leaf': leaf,
             'page': row[1] or '',
