@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+
 import click
 
 from ia_utils.core import ia_client, parser, database

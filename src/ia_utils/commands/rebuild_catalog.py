@@ -5,25 +5,30 @@ from pathlib import Path
 import click
 import sqlite_utils
 
-from ia_utils.core import database
+from ia_utils.core import ia_client, parser, database
 from ia_utils.utils.logger import Logger
+from ia_utils.utils.slug import generate_slug
 
 
 @click.command()
 @click.argument('catalog', type=click.Path(exists=True))
+@click.option('--full', is_flag=True,
+              help='Fully regenerate catalog including metadata (re-downloads all files).')
 @click.pass_context
-def rebuild_catalog(ctx, catalog):
+def rebuild_catalog(ctx, catalog, full):
     """Rebuild text_blocks and FTS indexes in an existing catalog database.
 
-    Unconditionally rebuilds text_blocks from the source hOCR file (downloaded
-    from Internet Archive), then rebuilds text_blocks_fts and pages_fts indexes
-    without modifying other tables (document_metadata, archive_files, etc.).
+    By default, rebuilds text_blocks from the source hOCR file (downloaded
+    from Internet Archive), then rebuilds FTS indexes without modifying
+    other tables (document_metadata, archive_files, etc.).
 
-    This is useful after manual edits or schema updates.
+    Use --full to completely regenerate the catalog, including metadata.
+    This is useful after schema changes that add new metadata fields.
 
-    Example:
+    Examples:
         ia-utils rebuild-catalog catalog.sqlite
-        ia-utils -v rebuild-catalog catalog.sqlite
+        ia-utils rebuild-catalog catalog.sqlite --full
+        ia-utils -v rebuild-catalog catalog.sqlite --full
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -54,6 +59,80 @@ def rebuild_catalog(ctx, catalog):
     except Exception as e:
         logger.error(f"Failed to read document_metadata: {e}")
         sys.exit(1)
+
+    # Full regeneration mode
+    if full:
+        catalog_path = Path(catalog)
+        if verbose:
+            logger.section(f"Full regeneration: {catalog}")
+            logger.info(f"IA identifier: {ia_id}")
+            logger.subsection("1. Downloading files from Internet Archive...")
+
+        try:
+            meta_bytes = ia_client.download_file(ia_id, f"{ia_id}_meta.xml", logger=logger, verbose=verbose)
+            files_bytes = ia_client.download_file(ia_id, f"{ia_id}_files.xml", logger=logger, verbose=verbose)
+            hocr_bytes = ia_client.download_file(ia_id, f"{ia_id}_hocr.html", logger=logger, verbose=verbose)
+        except Exception:
+            sys.exit(1)
+
+        if verbose:
+            logger.progress("   Downloading page numbers mapping...", nl=False)
+        page_numbers_data = ia_client.download_json(ia_id, f"{ia_id}_page_numbers.json", logger=logger, verbose=verbose)
+        if verbose:
+            if page_numbers_data and 'pages' in page_numbers_data:
+                logger.progress_done(f"✓ ({len(page_numbers_data['pages'])} pages)")
+            else:
+                logger.progress_done("(not available)")
+
+        if verbose:
+            logger.subsection("2. Parsing source files...")
+
+        metadata = parser.parse_metadata(meta_bytes)
+        title = next((v for k, v in metadata if k == 'title'), 'Unknown')
+        if verbose:
+            logger.info(f"   Title: {title}")
+
+        files = parser.parse_files(files_bytes)
+        if verbose:
+            logger.info(f"   ✓ {len(files)} file formats")
+
+        blocks_list = parser.parse_hocr(hocr_bytes, logger=logger)
+        pages_set = set(block['page_id'] for block in blocks_list)
+        if verbose:
+            logger.info(f"   ✓ {len(pages_set)} pages")
+
+        if verbose:
+            logger.subsection("3. Generating slug...")
+        final_slug = generate_slug(metadata, ia_id)
+        if verbose:
+            logger.info(f"   Slug: {final_slug}")
+
+        if verbose:
+            logger.subsection("4. Rebuilding database...")
+
+        # Remove old file and create new one
+        catalog_path.unlink()
+        try:
+            database.create_catalog_database(
+                catalog_path,
+                ia_id,
+                final_slug,
+                metadata,
+                files,
+                blocks_list,
+                page_numbers_data,
+                logger=logger
+            )
+        except Exception as e:
+            logger.error(f"Failed to create database: {e}")
+            sys.exit(1)
+
+        if verbose:
+            logger.section("Complete")
+            logger.info(f"✓ Catalog regenerated: {catalog_path}")
+        else:
+            click.echo(str(catalog_path))
+        return
 
     # Find hOCR file in archive_files
     try:
