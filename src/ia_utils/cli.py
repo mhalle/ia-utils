@@ -18,7 +18,48 @@ from ia_utils.commands.rebuild_catalog import rebuild_catalog
 @click.option('-v', '--verbose', is_flag=True, help='Verbose output')
 @click.pass_context
 def cli(ctx, verbose):
-    """Build and manage Internet Archive document catalogs."""
+    """Tools for working with Internet Archive books and documents.
+
+    TYPICAL WORKFLOW:
+
+    \b
+    1. DISCOVER: Search Internet Archive for books/documents
+       ia-utils search-ia -q "anatomy atlas" --year 1900-1940 -m texts
+    2. CREATE CATALOG: Build searchable database from a document
+       ia-utils create-catalog <ia_id> -d ./catalogs/
+    3. SEARCH CATALOG: Find pages by OCR text content
+       ia-utils search-catalog -c catalog.sqlite -q "femur"
+    4. DOWNLOAD: Get pages, PDFs, or URLs
+       ia-utils get-page -c catalog.sqlite -l 42
+       ia-utils get-pdf -c catalog.sqlite
+
+    COMMAND GROUPS:
+
+    \b
+    Discovery:
+      search-ia        Search IA metadata (by title, creator, year, etc.)
+    Catalog Management:
+      create-catalog   Build catalog database from IA document
+      catalog-info     Show metadata about catalog(s)
+      rebuild-catalog  Rebuild catalog's text/FTS indexes
+      search-catalog   Search catalog by OCR text content
+    Downloading:
+      get-page         Download single page image
+      get-pages        Download multiple page images
+      get-book-pages   Download all pages as ZIP
+      get-pdf          Download PDF
+      get-url          Get URL without downloading
+
+    IDENTIFIERS:
+
+    \b
+    Most commands accept IA identifiers in multiple forms:
+      - ID: anatomicalatlasi00smit
+      - URL: https://archive.org/details/anatomicalatlasi00smit
+      - Catalog: -c catalog.sqlite (reads ID from database)
+
+    Use -v/--verbose for detailed progress output.
+    """
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
 
