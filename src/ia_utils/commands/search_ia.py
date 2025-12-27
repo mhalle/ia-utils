@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import json
 import re
 from pathlib import Path
@@ -12,6 +11,7 @@ import click
 
 from ia_utils.core import ia_client
 from ia_utils.utils.logger import Logger
+from ia_utils.utils.output import determine_format, write_output, normalize_field_value
 
 DEFAULT_FIELDS = [
     'identifier',
@@ -31,32 +31,11 @@ DEFAULT_FIELDS = [
     'ocr',
     'favorite_collections_count',
 ]
-FORMAT_EXTENSIONS = {
-    '.json': 'json',
-    '.jsonl': 'jsonl',
-    '.ndjson': 'jsonl',
-    '.csv': 'csv',
-    '.yaml': 'records',
-    '.yml': 'records',
-    '.md': 'records',
-    '.txt': 'records',
-}
 
 DATE_PATTERN = re.compile(r'(\d{4})')
 FAVORITE_PREFIX = 'fav-'
 COLLECTION_FIELDS = ('collection', 'collections_raw', 'collections_ordered', 'list_memberships', 'in')
 FAVORITE_COUNT_FIELD = 'favorite_collections_count'
-
-
-def _normalize_field_value(value: Any) -> str:
-    """Convert IA field values (lists, dicts) into printable strings."""
-    if value is None:
-        return ''
-    if isinstance(value, (list, tuple)):
-        return ', '.join(_normalize_field_value(v) for v in value if v)
-    if isinstance(value, dict):
-        return json.dumps(value, ensure_ascii=False)
-    return str(value)
 
 
 def _build_query(base_query: str, media_types: Iterable[str], collections: Iterable[str], languages: Iterable[str], formats: Iterable[str]) -> str:
@@ -98,94 +77,6 @@ def _parse_sorts(sorts: Iterable[str]) -> List[str]:
             direction = 'asc'
         parsed.append(f"{field.strip()} {direction}")
     return parsed
-
-
-def _determine_format(explicit_format: str | None, output_path: Path | None) -> str:
-    if explicit_format:
-        return explicit_format
-    if output_path:
-        return FORMAT_EXTENSIONS.get(output_path.suffix.lower(), 'records')
-    return 'records'
-
-
-def _write_output(format_name: str,
-                  fields: List[str],
-                  results: List[Dict[str, Any]],
-                  output_path: Path | None) -> None:
-    """Write results to stdout or file in requested format."""
-    rows = [[_normalize_field_value(item.get(field)) for field in fields] for item in results]
-
-    if format_name == 'json':
-        payload = [
-            {field: item.get(field) for field in fields}
-            for item in results
-        ]
-        text = json.dumps(payload, ensure_ascii=False, indent=2)
-        if output_path:
-            output_path.write_text(text, encoding='utf-8')
-        else:
-            click.echo(text)
-        return
-
-    if format_name == 'jsonl':
-        lines = [
-            json.dumps({field: item.get(field) for field in fields}, ensure_ascii=False)
-            for item in results
-        ]
-        text = '\n'.join(lines)
-        if output_path:
-            output_path.write_text(text + ('\n' if lines else ''), encoding='utf-8')
-        else:
-            click.echo(text)
-        return
-
-    if format_name == 'csv':
-        if output_path:
-            handle = output_path.open('w', newline='', encoding='utf-8')
-            close_handle = True
-        else:
-            handle = click.get_text_stream('stdout')
-            close_handle = False
-        writer = csv.writer(handle)
-        writer.writerow(fields)
-        writer.writerows(rows)
-        if close_handle:
-            handle.close()
-        return
-
-    if format_name == 'records':
-        lines: List[str] = []
-        for idx, item in enumerate(results):
-            for field in fields:
-                value = _normalize_field_value(item.get(field))
-                lines.append(f"{field}: {value}".rstrip())
-            if idx != len(results) - 1:
-                lines.append('')
-        text = '\n'.join(lines)
-        if output_path:
-            output_path.write_text((text + '\n') if text else '', encoding='utf-8')
-        else:
-            click.echo(text)
-        return
-
-    # table output
-    widths = [len(field) for field in fields]
-    for row in rows:
-        for idx, value in enumerate(row):
-            widths[idx] = max(widths[idx], len(value))
-
-    def _format_row(cells: List[str]) -> str:
-        return '  '.join(cell.ljust(widths[idx]) for idx, cell in enumerate(cells))
-
-    header = _format_row(fields)
-    divider = '  '.join('-' * width for width in widths)
-    lines = [header, divider]
-    lines.extend(_format_row(row) for row in rows)
-    output = '\n'.join(lines)
-    if output_path:
-        output_path.write_text(output + ('\n' if output else ''), encoding='utf-8')
-    else:
-        click.echo(output)
 
 
 def _expand_fields(fields: List[str], results: List[Dict[str, Any]]) -> List[str]:
@@ -341,7 +232,7 @@ def search_ia(ctx, query, media_types, collections, languages, formats, extra_fi
     final_query = _build_query(query, media_types, collections, languages, formats)
     parsed_sorts = _parse_sorts(sorts)
     output_path = Path(output) if output else None
-    format_name = _determine_format(output_format, output_path)
+    format_name = determine_format(output_format, output_path)
 
     try:
         search_response = ia_client.search_items(
@@ -373,11 +264,11 @@ def search_ia(ctx, query, media_types, collections, languages, formats, extra_fi
             start_idx,
             end_idx
         )
-        _write_output(format_name, stats_fields, stats_records, output_path)
+        write_output(format_name, stats_fields, stats_records, output_path)
         return
 
     if format_name in ('records', 'table') and not results and not output_path:
         # Nothing else to print.
         return
 
-    _write_output(format_name, output_fields, results, output_path)
+    write_output(format_name, output_fields, results, output_path)

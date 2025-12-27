@@ -20,31 +20,31 @@ def extract_ia_id(input_str: str) -> str:
 
 @click.command()
 @click.argument('identifier')
-@click.option('-h', '--human', 'human_filename', is_flag=True, help='Use human-readable slug as filename')
-@click.option('-a', '--auto', 'auto_slug', is_flag=True, help='Auto-generate slug non-interactively')
-@click.option('-o', '--slug', type=str, help='Set custom slug')
+@click.option('-d', '--dir', 'output_dir', type=click.Path(file_okay=False),
+              help='Output directory (default: current directory)')
+@click.option('-o', '--output', type=str, help='Override output filename')
 @click.pass_context
-def create_catalog(ctx, identifier, human_filename, auto_slug, slug):
+def create_catalog(ctx, identifier, output_dir, output):
     """Create a catalog database from an Internet Archive document.
 
     IDENTIFIER can be an IA ID or full URL:
     - anatomicalatlasi00smit
     - https://archive.org/details/anatomicalatlasi00smit
 
-    FILENAME MODES:
-    - No flags: {id}.sqlite, interactive slug
-    - -h: {human-readable-slug}.sqlite, auto-generated slug
-    - -a: {id}.sqlite, auto-generated slug
-    - -o custom: {id}.sqlite, custom slug
+    OUTPUT:
+    - Default filename: {author}-{title}-{year}_{ia_id}.sqlite
+    - Use -o to override filename
+    - Use -d to specify output directory
+
+    Examples:
+        ia-utils create-catalog anatomicalatlasi00smit
+        ia-utils create-catalog anatomicalatlasi00smit -d ./catalogs/
+        ia-utils create-catalog anatomicalatlasi00smit -o anatomy.sqlite
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
 
     ia_id = extract_ia_id(identifier)
-
-    # Auto-slug when not verbose
-    if not verbose:
-        auto_slug = True
 
     # Show header when verbose
     if verbose:
@@ -88,35 +88,24 @@ def create_catalog(ctx, identifier, human_filename, auto_slug, slug):
     if verbose:
         logger.info(f"   ✓ {len(pages_set)} pages")
 
-    # Determine slug and output filename
+    # Generate slug (always auto-generated, used for filename and stored in DB)
     if verbose:
-        logger.subsection("3. Determining slug...")
+        logger.subsection("3. Generating slug...")
 
-    if slug:
-        # User specified slug directly with -o
-        final_slug = slug
-        if verbose:
-            logger.info(f"   Using provided slug: {final_slug}")
-    elif auto_slug or human_filename:
-        # Auto-generate without interaction
-        final_slug = generate_slug(metadata, ia_id)
-        if verbose:
-            logger.info(f"   Auto-generated slug: {final_slug}")
+    final_slug = generate_slug(metadata, ia_id)
+    if verbose:
+        logger.info(f"   Slug: {final_slug}")
+
+    # Determine output path
+    if output:
+        output_filename = output if output.endswith('.sqlite') else f"{output}.sqlite"
     else:
-        # Interactive mode (default)
-        suggested_slug = generate_slug(metadata, ia_id)
-        logger.info(f"   Suggested slug: {suggested_slug}")
-        final_slug = click.prompt("   Enter slug (or press Enter to accept)", default=suggested_slug)
-
-    # Determine output filename based on flags
-    if human_filename:
-        # Use human-readable slug as filename
         output_filename = f"{final_slug}.sqlite"
-    else:
-        # Use just the IA ID as filename (for all other modes)
-        output_filename = f"{ia_id}.sqlite"
 
-    output_path = Path.cwd() / output_filename
+    if output_dir:
+        output_path = Path(output_dir) / output_filename
+    else:
+        output_path = Path.cwd() / output_filename
 
     if verbose:
         logger.subsection("4. Building database...")
