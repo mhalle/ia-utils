@@ -84,10 +84,38 @@ def catalog_info(ctx, catalogs, fields, output, output_format):
 
     CATALOGS: One or more paths to .sqlite catalog files.
 
-    Examples:
-        ia-utils catalog-info spalteholz.sqlite
-        ia-utils catalog-info *.sqlite --output-format table
-        ia-utils catalog-info catalogs/*.sqlite -f ia_identifier -f title --output-format csv
+    AVAILABLE FIELDS:
+
+    \b
+    Default fields (shown without -f):
+      filename, ia_identifier, title, creator_primary,
+      publication_date, page_count, block_count, size_mb
+
+    \b
+    Additional fields (use -f or -f '*' for all):
+      path, slug, creator_secondary, publisher, language,
+      collection, description, created_at
+
+    OUTPUT FORMATS:
+
+    \b
+    records   Key-value pairs (default for single catalog)
+    table     Aligned columns (default for multiple catalogs)
+    json      JSON array
+    jsonl     JSON Lines
+    csv       Comma-separated values
+
+    EXAMPLES:
+
+    \b
+    # Single catalog (detailed view)
+    ia-utils catalog-info spalteholz.sqlite
+    # Multiple catalogs (table view)
+    ia-utils catalog-info *.sqlite --output-format table
+    # Specific fields as CSV
+    ia-utils catalog-info *.sqlite -f ia_identifier -f title -o catalog.csv
+    # All fields
+    ia-utils catalog-info spalteholz.sqlite -f '*'
     """
     if not catalogs:
         click.echo("Error: No catalog files specified.", err=True)

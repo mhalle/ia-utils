@@ -13,29 +13,31 @@ from ia_utils.utils.pages import extract_ia_id
 @click.command()
 @click.argument('identifier', required=False)
 @click.option('-c', '--catalog', type=click.Path(exists=True), help='Load IA ID from catalog database')
-@click.option('-a', '--auto', 'auto_filename', is_flag=True, help='Auto-generate filename from slug')
-@click.option('-o', '--output', type=str, help='Custom output filename')
+@click.option('-d', '--dir', 'output_dir', type=click.Path(file_okay=False), help='Output directory')
+@click.option('-o', '--output', type=str, help='Override output filename')
 @click.pass_context
-def get_pdf(ctx, identifier, catalog, auto_filename, output):
+def get_pdf(ctx, identifier, catalog, output_dir, output):
     """Download PDF from Internet Archive document.
 
-    IDENTIFIER can be an IA ID or full URL:
-    - anatomicalatlasi00smit
-    - https://archive.org/details/anatomicalatlasi00smit
+    IDENTIFIER:
+    IA ID or full URL. Can be omitted if using -c/--catalog.
 
-    Alternatively, use -c to load IA ID from a catalog database:
-    - get-pdf -c catalog.sqlite
+    OUTPUT:
+    With -c/--catalog: defaults to {slug}.pdf (human-readable name from catalog)
+    Without catalog: defaults to {ia_id}.pdf
+    Use -o to override filename, -d to specify directory.
 
-    FILENAME MODES:
-    - No flags: {id}.pdf
-    - -a: {slug}.pdf (from database metadata or auto-generated)
-    - -o custom: custom.pdf
+    EXAMPLES:
 
-    Examples:
-        ia-utils get-pdf anatomicalatlasi00smit
-        ia-utils get-pdf anatomicalatlasi00smit -a
-        ia-utils get-pdf -c catalog.sqlite -a
-        ia-utils get-pdf anatomicalatlasi00smit -o my_document.pdf
+    \b
+    # Download by ID (saves as {ia_id}.pdf)
+    ia-utils get-pdf anatomicalatlasi00smit
+    # Download using catalog (saves as {slug}.pdf)
+    ia-utils get-pdf -c catalog.sqlite
+    # Custom filename
+    ia-utils get-pdf -c catalog.sqlite -o anatomy.pdf
+    # Save to specific directory
+    ia-utils get-pdf -c catalog.sqlite -d ./pdfs/
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -85,28 +87,22 @@ def get_pdf(ctx, identifier, catalog, auto_filename, output):
 
     # Determine output filename
     if output:
-        # Custom filename
-        output_filename = output
-        if verbose:
-            logger.info(f"2. Using custom filename: {output_filename}")
-    elif auto_filename:
-        # Auto-generate from slug
-        if slug:
-            output_filename = f"{slug}.pdf"
-            if verbose:
-                logger.info(f"2. Auto-generated filename: {output_filename}")
-        else:
-            output_filename = f"{ia_id}.pdf"
-            if verbose:
-                logger.info(f"2. Auto-generated filename (from ID): {output_filename}")
+        output_filename = output if output.endswith('.pdf') else f"{output}.pdf"
+    elif slug:
+        # Use slug from catalog (human-readable)
+        output_filename = f"{slug}.pdf"
     else:
-        # Default: use IA ID
+        # Fallback to IA ID
         output_filename = f"{ia_id}.pdf"
-        if verbose:
-            logger.info(f"2. Using filename: {output_filename}")
 
-    # Write PDF to file
-    output_path = Path.cwd() / output_filename
+    # Determine output path
+    if output_dir:
+        output_path = Path(output_dir) / output_filename
+    else:
+        output_path = Path.cwd() / output_filename
+
+    if verbose:
+        logger.info(f"2. Output: {output_path}")
 
     try:
         output_path.write_bytes(pdf_bytes)
