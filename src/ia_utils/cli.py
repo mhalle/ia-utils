@@ -2,6 +2,7 @@
 
 import click
 
+from ia_utils.commands.catalog_info import catalog_info
 from ia_utils.commands.create_catalog import create_catalog
 from ia_utils.commands.get_page import get_page
 from ia_utils.commands.get_pages import get_pages
@@ -23,6 +24,7 @@ def cli(ctx, verbose):
 
 
 # Register commands
+cli.add_command(catalog_info)
 cli.add_command(create_catalog)
 cli.add_command(get_page)
 cli.add_command(get_pages)
