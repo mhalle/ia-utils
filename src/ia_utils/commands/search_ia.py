@@ -291,10 +291,17 @@ def search_ia(ctx, query, media_types, collections, languages, year, creators, s
       --subject      Subject/topic
       --source       Contributing library or source
       --collection   IA collection (e.g., medicallibrary, wellcomelibrary)
-      --media-type   texts, audio, movies, image, software, etc.
+      --media-type   texts, audio, movies, image, software, collection
       --language     eng, ger, fre, etc.
       --format       DjVu, PDF, EPUB, etc.
       --has-ocr      Only items with OCR/searchable text
+
+    SEARCHING FOR COLLECTIONS:
+    Use -m collection to find collections instead of items. Useful fields:
+
+    \b
+      item_count     Number of items in the collection
+      description    Collection description
 
     OUTPUT FORMATS (--output-format):
 
@@ -325,6 +332,8 @@ def search_ia(ctx, query, media_types, collections, languages, year, creators, s
     ia-utils search-ia -q "apple cultivation" -o results.csv
     # Get just identifiers for scripting
     ia-utils search-ia --subject "botany" -f identifier --output-format jsonl
+    # Find medical library collections
+    ia-utils search-ia -m collection -q "medical library" -f identifier -f title -f item_count
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
