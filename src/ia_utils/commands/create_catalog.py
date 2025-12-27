@@ -58,14 +58,29 @@ def create_catalog(ctx, identifier, output_dir, output):
     try:
         meta_bytes = ia_client.download_file(ia_id, f"{ia_id}_meta.xml", logger=logger, verbose=verbose)
         files_bytes = ia_client.download_file(ia_id, f"{ia_id}_files.xml", logger=logger, verbose=verbose)
-        hocr_bytes = ia_client.download_file(ia_id, f"{ia_id}_hocr.html", logger=logger, verbose=verbose)
     except Exception:
         sys.exit(1)
 
-    # Try to download page numbers mapping
+    # Parse files.xml to find actual hOCR filename (may differ from standard naming)
+    files = parser.parse_files(files_bytes)
+    hocr_candidates = [f['filename'] for f in files if f['filename'].endswith('_hocr.html')]
+    if not hocr_candidates:
+        logger.error(f"No hOCR file found for {ia_id}")
+        sys.exit(1)
+    hocr_filename = hocr_candidates[0]
+
+    try:
+        hocr_bytes = ia_client.download_file(ia_id, hocr_filename, logger=logger, verbose=verbose)
+    except Exception:
+        sys.exit(1)
+
+    # Try to download page numbers mapping (use filename from files list if available)
     if verbose:
         logger.progress("   Downloading page numbers mapping...", nl=False)
-    page_numbers_data = ia_client.download_json(ia_id, f"{ia_id}_page_numbers.json", logger=logger, verbose=verbose)
+    pn_candidates = [f['filename'] for f in files if f['filename'].endswith('_page_numbers.json')]
+    page_numbers_data = None
+    if pn_candidates:
+        page_numbers_data = ia_client.download_json(ia_id, pn_candidates[0], logger=logger, verbose=False)
     if verbose:
         if page_numbers_data and 'pages' in page_numbers_data:
             logger.progress_done(f"✓ ({len(page_numbers_data['pages'])} pages)")
@@ -81,9 +96,6 @@ def create_catalog(ctx, identifier, output_dir, output):
     title = next((v for k, v in metadata if k == 'title'), 'Unknown')
     if verbose:
         logger.info(f"   Title: {title}")
-
-    files = parser.parse_files(files_bytes)
-    if verbose:
         logger.info(f"   ✓ {len(files)} file formats")
 
     blocks_list = parser.parse_hocr(hocr_bytes, logger=logger)
