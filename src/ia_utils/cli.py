@@ -2,8 +2,8 @@
 
 import click
 
-from ia_utils.commands.catalog_info import catalog_info
 from ia_utils.commands.create_catalog import create_catalog
+from ia_utils.commands.info import info
 from ia_utils.commands.get_page import get_page
 from ia_utils.commands.get_pages import get_pages
 from ia_utils.commands.get_pdf import get_pdf
@@ -38,9 +38,9 @@ def cli(ctx, verbose):
     \b
     Discovery:
       search-ia        Search IA metadata (by title, creator, year, etc.)
+      info             Show metadata about catalog or IA item
     Catalog Management:
       create-catalog   Build catalog database from IA document
-      catalog-info     Show metadata about catalog(s)
       rebuild-catalog  Rebuild catalog's text/FTS indexes
       search-catalog   Search catalog by OCR text content
     Downloading:
@@ -65,13 +65,13 @@ def cli(ctx, verbose):
 
 
 # Register commands
-cli.add_command(catalog_info)
 cli.add_command(create_catalog)
 cli.add_command(get_page)
 cli.add_command(get_pages)
 cli.add_command(get_pdf)
 cli.add_command(get_text)
 cli.add_command(get_url)
+cli.add_command(info)
 cli.add_command(rebuild_catalog)
 cli.add_command(search_catalog)
 cli.add_command(search_ia)
