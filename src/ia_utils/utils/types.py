@@ -36,7 +36,7 @@ class DocumentMetadata:
     publisher: str
     publication_date: str
     page_count: int
-    language: str
+    language: str  # semicolon-separated if multiple
     ark_identifier: str
     oclc_id: str
     openlibrary_edition: str
@@ -44,5 +44,9 @@ class DocumentMetadata:
     scan_quality_ppi: int
     scan_camera: str
     scan_date: str
-    collection: str
-    description: str
+    collection: str  # semicolon-separated if multiple
+    subject: str  # semicolon-separated if multiple
+    mediatype: str
+    contributor: str
+    ocr: str
+    description: str  # pipe-separated if multiple

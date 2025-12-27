@@ -76,8 +76,10 @@ def create_catalog(ctx, identifier, output_dir, output):
         logger.subsection("2. Parsing source files...")
 
     metadata = parser.parse_metadata(meta_bytes)
+    # Get title from metadata tuples for display
+    title = next((v for k, v in metadata if k == 'title'), 'Unknown')
     if verbose:
-        logger.info(f"   Title: {metadata.get('title', 'Unknown')}")
+        logger.info(f"   Title: {title}")
 
     files = parser.parse_files(files_bytes)
     if verbose:

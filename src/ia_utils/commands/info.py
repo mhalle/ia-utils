@@ -20,8 +20,14 @@ CATALOG_DEFAULT_FIELDS = [
     'creator_primary',
     'publication_date',
     'description',
+    'mediatype',
+    'collection',
+    'subject',
+    'language',
     'page_count',
     'block_count',
+    'ocr',
+    'contributor',
     'size_mb',
 ]
 
@@ -81,6 +87,10 @@ def get_catalog_info(catalog_path: Path) -> Dict[str, Any]:
             'size_mb': round(size_mb, 2),
             'language': meta.get('language', ''),
             'collection': meta.get('collection', ''),
+            'subject': meta.get('subject', ''),
+            'mediatype': meta.get('mediatype', ''),
+            'contributor': meta.get('contributor', ''),
+            'ocr': meta.get('ocr', ''),
             'description': meta.get('description', ''),
             'created_at': meta.get('created_at', ''),
         }
@@ -167,11 +177,11 @@ def info(ctx, identifier, catalog, fields, output, output_format):
 
     \b
     Default fields:
-      filename, ia_identifier, title, creator_primary,
-      publication_date, description, page_count, block_count, size_mb
+      filename, ia_identifier, title, creator_primary, publication_date,
+      description, mediatype, collection, subject, language, page_count,
+      block_count, ocr, contributor, size_mb
     Additional fields:
-      path, slug, creator_secondary, publisher, language,
-      collection, created_at
+      path, slug, creator_secondary, publisher, created_at
 
     IA ITEM INFO (remote identifier):
 

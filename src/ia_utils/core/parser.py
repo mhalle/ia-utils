@@ -9,12 +9,17 @@ from bs4 import BeautifulSoup, Tag
 from ia_utils.utils.logger import Logger
 
 
-def parse_metadata(meta_bytes: bytes) -> Dict[str, str]:
-    """Parse meta.xml bytes into metadata dictionary."""
+def parse_metadata(meta_bytes: bytes) -> List[Tuple[str, str]]:
+    """Parse meta.xml bytes into list of (key, value) tuples.
+
+    Returns tuples instead of dict to preserve multiple values for the same key
+    (e.g., multiple <language>, <collection>, <subject>, <description> tags).
+    """
     root = ET.fromstring(meta_bytes)
-    metadata = {}
+    metadata = []
     for child in root:
-        metadata[child.tag] = child.text
+        if child.text:
+            metadata.append((child.tag, child.text))
     return metadata
 
 

@@ -1,10 +1,10 @@
 """Slug generation utilities."""
 
-from typing import Dict, Any
+from typing import List, Tuple
 import re
 
 
-def generate_slug(metadata: Dict[str, Any], ia_id: str) -> str:
+def generate_slug(metadata: List[Tuple[str, str]], ia_id: str) -> str:
     """Generate a human-readable slug from metadata.
 
     Format: author-title-date-edition_ia_id
@@ -15,23 +15,27 @@ def generate_slug(metadata: Dict[str, Any], ia_id: str) -> str:
     - IA ID as unique identifier
 
     Args:
-        metadata: Document metadata dictionary
+        metadata: Document metadata as list of (key, value) tuples
         ia_id: Internet Archive identifier
 
     Returns:
         Human-readable slug
     """
+    def get_first(key: str, default: str = '') -> str:
+        """Get first value for a key from metadata tuples."""
+        for k, v in metadata:
+            if k == key:
+                return v
+        return default
+
     # Extract first author
-    creators = metadata.get('creator', 'unknown')
-    if isinstance(creators, str):
-        # Handle "Last Name, First Name" format - take first author, last name only
-        first_creator = creators.split(';')[0].split(',')[0].strip().lower()
-        author = re.sub(r'[^a-z0-9]', '', first_creator)
-    else:
-        author = 'unknown'
+    creator = get_first('creator', 'unknown')
+    # Handle "Last Name, First Name" format - take first author, last name only
+    first_creator = creator.split(';')[0].split(',')[0].strip().lower()
+    author = re.sub(r'[^a-z0-9]', '', first_creator)
 
     # Extract and clean title - keep first 4 significant words
-    title = metadata.get('title', 'document').lower()
+    title = get_first('title', 'document').lower()
     noise_words = {'the', 'of', 'a', 'an', 'and', 'or', 'in', 'for', 'to', 'with', 'by', 'on', 'at'}
 
     # Remove punctuation and split
@@ -40,11 +44,11 @@ def generate_slug(metadata: Dict[str, Any], ia_id: str) -> str:
     title_part = '-'.join(words[:4])  # First 4 significant words
 
     # Extract publication year
-    date = metadata.get('date', '')
+    date = get_first('date', '')
     year = date[:4] if date and len(date) >= 4 else ''
 
     # Check for edition
-    edition = metadata.get('edition', '')
+    edition = get_first('edition', '')
     if edition:
         edition = re.sub(r'[^a-z0-9]', '', edition.lower())
 

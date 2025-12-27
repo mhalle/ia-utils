@@ -107,34 +107,53 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
     # === TABLE 1: DOCUMENT METADATA ===
     logger.progress("     Creating document_metadata...", nl=False)
 
-    # Extract creators
-    creators = []
-    for key, value in metadata.items():
-        if key == 'creator' and value:
-            creators.append(value)
+    # Convert metadata list of tuples to helpers for single and multi-value access
+    def get_first(key: str, default: str = '') -> str:
+        """Get first value for a key."""
+        for k, v in metadata:
+            if k == key:
+                return v
+        return default
+
+    def get_all(key: str) -> List[str]:
+        """Get all values for a key (for multi-value fields)."""
+        return [v for k, v in metadata if k == key]
+
+    creators = get_all('creator')
+    languages = get_all('language')
+    collections = get_all('collection')
+    subjects = get_all('subject')
+    descriptions = get_all('description')
 
     creator_primary = creators[0] if creators else ''
     creator_secondary = creators[1] if len(creators) > 1 else ''
 
+    imagecount = get_first('imagecount', '')
+    ppi = get_first('ppi', '')
+
     metadata_record = {
         'slug': slug,
         'ia_identifier': ia_id,
-        'title': metadata.get('title', ''),
+        'title': get_first('title'),
         'creator_primary': creator_primary,
         'creator_secondary': creator_secondary,
-        'publisher': metadata.get('publisher', ''),
-        'publication_date': metadata.get('date', ''),
-        'page_count': int(metadata.get('imagecount', 0)) if metadata.get('imagecount', '').isdigit() else 0,
-        'language': metadata.get('language', 'eng'),
-        'ark_identifier': metadata.get('identifier-ark', ''),
-        'oclc_id': metadata.get('oclc-id', ''),
-        'openlibrary_edition': metadata.get('openlibrary_edition', ''),
-        'openlibrary_work': metadata.get('openlibrary_work', ''),
-        'scan_quality_ppi': int(metadata.get('ppi', 400)) if metadata.get('ppi', '').isdigit() else 400,
-        'scan_camera': metadata.get('camera', ''),
-        'scan_date': metadata.get('scandate', ''),
-        'collection': metadata.get('collection', ''),
-        'description': metadata.get('description', ''),
+        'publisher': get_first('publisher'),
+        'publication_date': get_first('date'),
+        'page_count': int(imagecount) if imagecount.isdigit() else 0,
+        'language': '; '.join(languages) if languages else 'eng',
+        'ark_identifier': get_first('identifier-ark'),
+        'oclc_id': get_first('oclc-id'),
+        'openlibrary_edition': get_first('openlibrary_edition'),
+        'openlibrary_work': get_first('openlibrary_work'),
+        'scan_quality_ppi': int(ppi) if ppi.isdigit() else 400,
+        'scan_camera': get_first('camera'),
+        'scan_date': get_first('scandate'),
+        'collection': '; '.join(collections) if collections else '',
+        'subject': '; '.join(subjects) if subjects else '',
+        'mediatype': get_first('mediatype'),
+        'contributor': get_first('contributor'),
+        'ocr': get_first('ocr'),
+        'description': ' | '.join(descriptions) if descriptions else '',
         'created_at': datetime.now().isoformat(),
     }
 
