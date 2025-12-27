@@ -8,6 +8,7 @@ from ia_utils.commands.get_page import get_page
 from ia_utils.commands.get_pages import get_pages
 from ia_utils.commands.get_pdf import get_pdf
 from ia_utils.commands.get_book_pages import get_book_pages
+from ia_utils.commands.get_text import get_text
 from ia_utils.commands.get_url import get_url
 from ia_utils.commands.search_catalog import search_catalog
 from ia_utils.commands.search_ia import search_ia
@@ -48,6 +49,7 @@ def cli(ctx, verbose):
       get-pages        Download multiple page images
       get-book-pages   Download all pages as ZIP
       get-pdf          Download PDF
+      get-text         Get OCR text from catalog
       get-url          Get URL without downloading
 
     IDENTIFIERS:
@@ -71,6 +73,7 @@ cli.add_command(get_page)
 cli.add_command(get_pages)
 cli.add_command(get_book_pages)
 cli.add_command(get_pdf)
+cli.add_command(get_text)
 cli.add_command(get_url)
 cli.add_command(rebuild_catalog)
 cli.add_command(search_catalog)
