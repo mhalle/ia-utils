@@ -1,5 +1,6 @@
 """Search catalog database using FTS."""
 
+import re
 import sys
 from pathlib import Path
 from typing import List, Dict, Any
@@ -11,6 +12,51 @@ from ia_utils.utils.output import determine_format, write_output
 
 
 DEFAULT_FIELDS = ['leaf', 'page', 'snippet', 'url']
+
+# Pattern to detect FTS5 operators as standalone words
+FTS5_KEYWORD = re.compile(r'^(AND|OR|NOT|NEAR(/\d+)?)$', re.IGNORECASE)
+
+# Characters that have special meaning in FTS5 and need quoting
+FTS5_SPECIAL_CHARS = set('-*^:()')
+
+
+def escape_fts_query(query: str) -> str:
+    """Escape a query for safe FTS5 execution.
+
+    Quotes terms containing special FTS5 characters (like hyphens)
+    to prevent them being interpreted as operators.
+
+    Preserves FTS5 operators (AND, OR, NOT, NEAR) and already-quoted phrases.
+
+    Examples:
+        "tri-tooth"         -> '"tri-tooth"'
+        "femur head"        -> 'femur head' (unchanged, implicit AND)
+        "femur OR tibia"    -> 'femur OR tibia' (unchanged)
+        "self-adjusting"    -> '"self-adjusting"'
+    """
+    # If already a quoted phrase, return as-is
+    if query.startswith('"') and query.endswith('"'):
+        return query
+
+    tokens = query.split()
+    escaped_tokens = []
+
+    for token in tokens:
+        # Preserve FTS5 keywords
+        if FTS5_KEYWORD.match(token):
+            escaped_tokens.append(token)
+        # Already quoted
+        elif token.startswith('"') and token.endswith('"'):
+            escaped_tokens.append(token)
+        # Contains special chars - quote it
+        elif any(c in token for c in FTS5_SPECIAL_CHARS):
+            # Escape internal quotes
+            escaped = token.replace('"', '""')
+            escaped_tokens.append(f'"{escaped}"')
+        else:
+            escaped_tokens.append(token)
+
+    return ' '.join(escaped_tokens)
 
 
 def search_pages(db: sqlite_utils.Database, query: str, limit: int, ia_id: str) -> List[Dict[str, Any]]:
@@ -91,6 +137,7 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
 @click.option('-l', '--limit', type=int, default=20, show_default=True,
               help='Maximum results')
 @click.option('--blocks', is_flag=True, help='Search blocks instead of pages (more granular)')
+@click.option('--raw', is_flag=True, help='Pass query directly to FTS5 without escaping')
 @click.option('-f', '--field', 'fields', multiple=True,
               help='Fields to show (default: leaf, page, snippet, url)')
 @click.option('-o', '--output', type=click.Path(dir_okay=False),
@@ -98,16 +145,26 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
 @click.option('--output-format', 'output_format',
               type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']),
               help='Output format')
-def search_catalog(catalog, query, limit, blocks, fields, output, output_format):
+def search_catalog(catalog, query, limit, blocks, raw, fields, output, output_format):
     """Search catalog database using FTS on OCR text.
 
     Searches the full-text index built from OCR content. By default searches
     at page level; use --blocks for finer granularity.
 
+    SPECIAL CHARACTERS:
+
+    \b
+    By default, terms with special characters (hyphens, etc.) are quoted
+    to prevent FTS5 misinterpretation. For example, "tri-tooth" is searched
+    as a literal term, not as "tri NOT tooth".
+
+    Use --raw to pass the query directly to FTS5 without escaping.
+
     QUERY SYNTAX (FTS5):
 
     \b
     Simple terms:      femur
+    Hyphenated:        self-adjusting (auto-quoted)
     Phrase:            "circle of willis"
     AND (implicit):    femur head
     OR:                femur OR tibia
@@ -162,11 +219,14 @@ def search_catalog(catalog, query, limit, blocks, fields, output, output_format)
             sys.exit(1)
         ia_id = metadata[0]['ia_identifier']
 
+        # Escape query unless --raw specified
+        fts_query = query if raw else escape_fts_query(query)
+
         # Search
         if blocks:
-            results = search_blocks(db, query, limit, ia_id)
+            results = search_blocks(db, fts_query, limit, ia_id)
         else:
-            results = search_pages(db, query, limit, ia_id)
+            results = search_pages(db, fts_query, limit, ia_id)
 
         # Determine output fields
         output_fields = list(fields) if fields else DEFAULT_FIELDS
