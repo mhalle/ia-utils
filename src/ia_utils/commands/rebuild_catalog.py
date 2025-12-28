@@ -55,7 +55,7 @@ def rebuild_catalog(ctx, catalog, full):
     # Get document metadata
     try:
         doc_meta = list(db['document_metadata'].rows_where(limit=1))[0]
-        ia_id = doc_meta['ia_identifier']
+        ia_id = doc_meta['identifier']
     except Exception as e:
         logger.error(f"Failed to read document_metadata: {e}")
         sys.exit(1)

@@ -157,7 +157,7 @@ def get_text(catalog, leaf_range, blocks, fields, output, output_format):
         if not metadata:
             click.echo("Error: No metadata found in catalog", err=True)
             sys.exit(1)
-        ia_id = metadata[0]['ia_identifier']
+        ia_id = metadata[0]['identifier']
 
         # Parse leaf range
         try:

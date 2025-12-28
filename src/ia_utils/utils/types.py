@@ -25,28 +25,11 @@ class TextBlock:
     parent_carea_id: Optional[str]
 
 
-@dataclass
-class DocumentMetadata:
-    """Metadata for an Internet Archive document."""
-    slug: str
-    ia_identifier: str
-    title: str
-    creator_primary: str
-    creator_secondary: str
-    publisher: str
-    publication_date: str
-    page_count: int
-    language: str  # semicolon-separated if multiple
-    ark_identifier: str
-    oclc_id: str
-    openlibrary_edition: str
-    openlibrary_work: str
-    scan_quality_ppi: int
-    scan_camera: str
-    scan_date: str
-    collection: str  # semicolon-separated if multiple
-    subject: str  # semicolon-separated if multiple
-    mediatype: str
-    contributor: str
-    ocr: str
-    description: str  # pipe-separated if multiple
+# NOTE: Catalog metadata uses official IA field names with dynamic columns.
+# All fields from the IA item metadata are stored directly.
+# Multi-value fields are joined with "; " separator.
+# Common fields include:
+#   identifier, title, creator, date, publisher, language, description,
+#   collection, subject, mediatype, contributor, ocr, imagecount, ppi,
+#   licenseurl, rights, possible-copyright-status, scandate, scanner, etc.
+# Plus computed fields: slug, created_at

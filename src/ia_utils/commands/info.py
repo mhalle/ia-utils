@@ -12,25 +12,25 @@ from ia_utils.utils.output import determine_format, write_output
 from ia_utils.utils.pages import extract_ia_id
 
 
-# Default fields for catalog info
+# Default fields for catalog info (uses official IA field names)
 CATALOG_DEFAULT_FIELDS = [
     'filename',
-    'ia_identifier',
+    'identifier',
     'title',
-    'creator_primary',
-    'publication_date',
+    'creator',
+    'date',
     'description',
     'mediatype',
     'collection',
     'subject',
     'language',
-    'page_count',
+    'imagecount',
     'block_count',
     'ocr',
     'contributor',
     'licenseurl',
     'rights',
-    'possible_copyright_status',
+    'possible-copyright-status',
     'size_mb',
 ]
 
@@ -44,11 +44,11 @@ IA_DEFAULT_FIELDS = [
     'mediatype',
     'collection',
     'language',
-    'page_count',
+    'imagecount',
     'ocr',
     'licenseurl',
     'rights',
-    'possible_copyright_status',
+    'possible-copyright-status',
     'downloads',
 ]
 
@@ -60,7 +60,7 @@ def get_catalog_info(catalog_path: Path) -> Dict[str, Any]:
         catalog_path: Path to the SQLite catalog file
 
     Returns:
-        Dictionary with catalog metadata
+        Dictionary with catalog metadata (all fields from DB plus computed fields)
     """
     try:
         db = sqlite_utils.Database(catalog_path)
@@ -70,39 +70,16 @@ def get_catalog_info(catalog_path: Path) -> Dict[str, Any]:
         if not metadata:
             return {'filename': catalog_path.name, 'error': 'No metadata found'}
 
-        meta = metadata[0]
+        # Start with all fields from database
+        result = dict(metadata[0])
 
-        # Get block count
-        block_count = db['text_blocks'].count if 'text_blocks' in db.table_names() else 0
+        # Add computed fields
+        result['filename'] = catalog_path.name
+        result['path'] = str(catalog_path)
+        result['block_count'] = db['text_blocks'].count if 'text_blocks' in db.table_names() else 0
+        result['size_mb'] = round(catalog_path.stat().st_size / 1024 / 1024, 2)
 
-        # Get file size
-        size_mb = catalog_path.stat().st_size / 1024 / 1024
-
-        return {
-            'filename': catalog_path.name,
-            'path': str(catalog_path),
-            'ia_identifier': meta.get('ia_identifier', ''),
-            'slug': meta.get('slug', ''),
-            'title': meta.get('title', ''),
-            'creator_primary': meta.get('creator_primary', ''),
-            'creator_secondary': meta.get('creator_secondary', ''),
-            'publisher': meta.get('publisher', ''),
-            'publication_date': meta.get('publication_date', ''),
-            'page_count': meta.get('page_count', 0),
-            'block_count': block_count,
-            'size_mb': round(size_mb, 2),
-            'language': meta.get('language', ''),
-            'collection': meta.get('collection', ''),
-            'subject': meta.get('subject', ''),
-            'mediatype': meta.get('mediatype', ''),
-            'contributor': meta.get('contributor', ''),
-            'ocr': meta.get('ocr', ''),
-            'description': meta.get('description', ''),
-            'licenseurl': meta.get('licenseurl', ''),
-            'rights': meta.get('rights', ''),
-            'possible_copyright_status': meta.get('possible_copyright_status', ''),
-            'created_at': meta.get('created_at', ''),
-        }
+        return result
     except Exception as e:
         return {'filename': catalog_path.name, 'error': str(e)}
 
@@ -114,47 +91,23 @@ def get_ia_info(ia_id: str) -> Dict[str, Any]:
         ia_id: Internet Archive identifier
 
     Returns:
-        Dictionary with IA metadata
+        Dictionary with all IA metadata plus computed fields
     """
     try:
         meta = ia_client.get_metadata(ia_id)
 
-        # Normalize some fields
-        creator = meta.get('creator', '')
-        if isinstance(creator, list):
-            creator = '; '.join(creator)
+        # Start with all raw metadata, joining list values
+        result = {}
+        for key, value in meta.items():
+            if isinstance(value, list):
+                result[key] = '; '.join(str(v) for v in value)
+            else:
+                result[key] = value
 
-        collection = meta.get('collection', '')
-        if isinstance(collection, list):
-            collection = ', '.join(collection)
+        # Add computed field
+        result['url'] = f'https://archive.org/details/{ia_id}'
 
-        subject = meta.get('subject', '')
-        if isinstance(subject, list):
-            subject = ', '.join(subject)
-
-        return {
-            'identifier': ia_id,
-            'url': f'https://archive.org/details/{ia_id}',
-            'title': meta.get('title', ''),
-            'creator': creator,
-            'date': meta.get('date', ''),
-            'description': meta.get('description', ''),
-            'mediatype': meta.get('mediatype', ''),
-            'collection': collection,
-            'language': meta.get('language', ''),
-            'subject': subject,
-            'publisher': meta.get('publisher', ''),
-            'page_count': meta.get('imagecount', ''),
-            'ocr': meta.get('ocr', ''),
-            'licenseurl': meta.get('licenseurl', ''),
-            'rights': meta.get('rights', ''),
-            'possible_copyright_status': meta.get('possible-copyright-status', ''),
-            'downloads': meta.get('downloads', ''),
-            'source': meta.get('source', ''),
-            'contributor': meta.get('contributor', ''),
-            'scanner': meta.get('scanner', ''),
-            'ppi': meta.get('ppi', ''),
-        }
+        return result
     except Exception as e:
         return {'identifier': ia_id, 'error': str(e)}
 
@@ -189,22 +142,19 @@ def info(ctx, identifier, catalog, fields, output, output_format):
 
     \b
     Default fields:
-      filename, ia_identifier, title, creator_primary, publication_date,
-      description, mediatype, collection, subject, language, page_count,
-      block_count, ocr, contributor, licenseurl, rights,
-      possible_copyright_status, size_mb
-    Additional fields:
-      path, slug, creator_secondary, publisher, created_at
+      filename, identifier, title, creator, date, description, mediatype,
+      collection, subject, language, imagecount, block_count, ocr,
+      contributor, licenseurl, rights, possible-copyright-status, size_mb
+    All IA metadata fields are available with -f '*'
 
     IA ITEM INFO (remote identifier):
 
     \b
     Default fields:
-      identifier, title, creator, date, description,
-      mediatype, collection, language, page_count, ocr, licenseurl,
-      rights, possible_copyright_status, downloads
-    Additional fields:
-      url, subject, publisher, source, contributor, scanner, ppi
+      identifier, title, creator, date, description, mediatype, collection,
+      language, imagecount, ocr, licenseurl, rights,
+      possible-copyright-status, downloads
+    All IA metadata fields are available with -f '*'
 
     EXAMPLES:
 

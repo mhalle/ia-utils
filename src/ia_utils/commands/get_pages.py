@@ -169,7 +169,7 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
             if not metadata:
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
-            ia_id_from_catalog = metadata[0]['ia_identifier']
+            ia_id_from_catalog = metadata[0]['identifier']
             slug = metadata[0].get('slug', '')
             # Verify IA ID matches if identifier was also provided
             if ia_id and ia_id != ia_id_from_catalog:

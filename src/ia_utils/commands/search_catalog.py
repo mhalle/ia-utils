@@ -217,7 +217,7 @@ def search_catalog(catalog, query, limit, blocks, raw, fields, output, output_fo
         if not metadata:
             click.echo("Error: No metadata found in catalog", err=True)
             sys.exit(1)
-        ia_id = metadata[0]['ia_identifier']
+        ia_id = metadata[0]['identifier']
 
         # Escape query unless --raw specified
         fts_query = query if raw else escape_fts_query(query)

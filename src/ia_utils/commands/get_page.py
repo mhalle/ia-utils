@@ -81,7 +81,7 @@ def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality
             if not metadata:
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
-            ia_id_from_catalog = metadata[0]['ia_identifier']
+            ia_id_from_catalog = metadata[0]['identifier']
             # Verify IA ID matches if identifier was also provided
             if ia_id and ia_id != ia_id_from_catalog:
                 logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")

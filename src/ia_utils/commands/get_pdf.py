@@ -58,7 +58,7 @@ def get_pdf(ctx, identifier, catalog, output_dir, output):
             if not metadata:
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
-            ia_id = metadata[0]['ia_identifier']
+            ia_id = metadata[0]['identifier']
             slug = metadata[0].get('slug', '')
         except Exception as e:
             logger.error(f"Failed to read catalog database: {e}")
