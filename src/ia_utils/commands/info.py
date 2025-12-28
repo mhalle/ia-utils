@@ -28,6 +28,9 @@ CATALOG_DEFAULT_FIELDS = [
     'block_count',
     'ocr',
     'contributor',
+    'licenseurl',
+    'rights',
+    'possible_copyright_status',
     'size_mb',
 ]
 
@@ -43,6 +46,9 @@ IA_DEFAULT_FIELDS = [
     'language',
     'page_count',
     'ocr',
+    'licenseurl',
+    'rights',
+    'possible_copyright_status',
     'downloads',
 ]
 
@@ -92,6 +98,9 @@ def get_catalog_info(catalog_path: Path) -> Dict[str, Any]:
             'contributor': meta.get('contributor', ''),
             'ocr': meta.get('ocr', ''),
             'description': meta.get('description', ''),
+            'licenseurl': meta.get('licenseurl', ''),
+            'rights': meta.get('rights', ''),
+            'possible_copyright_status': meta.get('possible_copyright_status', ''),
             'created_at': meta.get('created_at', ''),
         }
     except Exception as e:
@@ -137,6 +146,9 @@ def get_ia_info(ia_id: str) -> Dict[str, Any]:
             'publisher': meta.get('publisher', ''),
             'page_count': meta.get('imagecount', ''),
             'ocr': meta.get('ocr', ''),
+            'licenseurl': meta.get('licenseurl', ''),
+            'rights': meta.get('rights', ''),
+            'possible_copyright_status': meta.get('possible-copyright-status', ''),
             'downloads': meta.get('downloads', ''),
             'source': meta.get('source', ''),
             'contributor': meta.get('contributor', ''),
@@ -179,7 +191,8 @@ def info(ctx, identifier, catalog, fields, output, output_format):
     Default fields:
       filename, ia_identifier, title, creator_primary, publication_date,
       description, mediatype, collection, subject, language, page_count,
-      block_count, ocr, contributor, size_mb
+      block_count, ocr, contributor, licenseurl, rights,
+      possible_copyright_status, size_mb
     Additional fields:
       path, slug, creator_secondary, publisher, created_at
 
@@ -188,7 +201,8 @@ def info(ctx, identifier, catalog, fields, output, output_format):
     \b
     Default fields:
       identifier, title, creator, date, description,
-      mediatype, collection, language, page_count, ocr, downloads
+      mediatype, collection, language, page_count, ocr, licenseurl,
+      rights, possible_copyright_status, downloads
     Additional fields:
       url, subject, publisher, source, contributor, scanner, ppi
 

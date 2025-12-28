@@ -154,6 +154,9 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
         'contributor': get_first('contributor'),
         'ocr': get_first('ocr'),
         'description': ' | '.join(descriptions) if descriptions else '',
+        'licenseurl': get_first('licenseurl'),
+        'rights': get_first('rights'),
+        'possible_copyright_status': get_first('possible-copyright-status'),
         'created_at': datetime.now().isoformat(),
     }
 
