@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ia-utils"
-version = "0.1.0"
+version = "0.5.0"
 description = "CLI tool to work with Internet Archive documents"
 readme = "README.md"
 license = {text = "MIT"}
