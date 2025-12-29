@@ -11,6 +11,22 @@ A command-line tool for working with Internet Archive books and documents. Build
 - **Download PDFs** - Fetch PDFs directly from Internet Archive
 - **Flexible output** - Export results as table, JSON, JSONL, CSV, or key-value records
 
+## Documentation
+
+See the [docs/](docs/) folder for detailed guides:
+
+- **[Quick Reference](docs/quick-reference.md)** - Command cheatsheet
+- **[Workflow Guide](docs/workflow-guide.md)** - Step-by-step workflows
+- **[Search Reference](docs/search-reference.md)** - Search options and examples
+- **[Catalog Reference](docs/catalog-reference.md)** - Building and querying catalogs
+- **[Page Navigation](docs/page-navigation.md)** - Working with pages, leafs, and plates
+- **[Database Schema](docs/database-schema.md)** - SQLite schema for direct queries
+- **[Collections](docs/collections.md)** - Guide to IA collections by subject
+- **[Multi-Volume Works](docs/multi-volume.md)** - Handling multi-volume sets
+- **[Tips and Tricks](docs/tips-and-tricks.md)** - Advanced techniques
+- **[Troubleshooting](docs/troubleshooting.md)** - Common problems and solutions
+- **[Example Session](docs/example-session.md)** - Complete walkthrough
+
 ## Installation
 
 Requires Python 3.9+ and [uv](https://github.com/astral-sh/uv):
