@@ -8,7 +8,7 @@ import sqlite_utils
 from ia_utils.utils.logger import Logger
 
 # Type for catalog mode
-CatalogMode = Literal['searchtext', 'mixed', 'hocr']
+CatalogMode = Literal['searchtext', 'mixed', 'hocr', 'djvu']
 
 
 def get_document_metadata(db: sqlite_utils.Database) -> Dict[str, str]:

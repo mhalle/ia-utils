@@ -72,23 +72,38 @@ def search_pages(db: sqlite_utils.Database, query: str, limit: int, ia_id: str) 
     Returns:
         List of result dictionaries
     """
-    sql = """
-        SELECT
-            pf.page_id as leaf,
-            pn.book_page_number as page,
-            snippet(pages_fts, 0, '→', '←', '...', 32) as snippet
-        FROM pages_fts pf
-        LEFT JOIN page_numbers pn ON pf.page_id = pn.leaf_num
-        WHERE pages_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-    """
+    has_page_numbers = 'page_numbers' in db.table_names()
+
+    if has_page_numbers:
+        sql = """
+            SELECT
+                pf.page_id as leaf,
+                pn.book_page_number as page,
+                snippet(pages_fts, 0, '→', '←', '...', 32) as snippet
+            FROM pages_fts pf
+            LEFT JOIN page_numbers pn ON pf.page_id = pn.leaf_num
+            WHERE pages_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """
+    else:
+        sql = """
+            SELECT
+                pf.page_id as leaf,
+                pf.page_id as page,
+                snippet(pages_fts, 0, '→', '←', '...', 32) as snippet
+            FROM pages_fts pf
+            WHERE pages_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """
+
     results = []
     for row in db.execute(sql, [query, limit]).fetchall():
-        leaf = row[0] or 0
+        leaf = row[0] if row[0] is not None else 0
         results.append({
             'leaf': leaf,
-            'page': row[1] or '',
+            'page': str(row[1]) if row[1] is not None else '',
             'snippet': row[2],
             'url': f"https://archive.org/details/{ia_id}/page/leaf{leaf}"
         })
@@ -107,24 +122,40 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
     Returns:
         List of result dictionaries
     """
-    sql = """
-        SELECT
-            tb.page_id as leaf,
-            pn.book_page_number as page,
-            snippet(text_blocks_fts, 0, '→', '←', '...', 32) as snippet
-        FROM text_blocks_fts tbf
-        JOIN text_blocks tb ON tbf.rowid = tb.rowid
-        LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num
-        WHERE text_blocks_fts MATCH ?
-        ORDER BY tbf.rank
-        LIMIT ?
-    """
+    has_page_numbers = 'page_numbers' in db.table_names()
+
+    if has_page_numbers:
+        sql = """
+            SELECT
+                tb.page_id as leaf,
+                pn.book_page_number as page,
+                snippet(text_blocks_fts, 0, '→', '←', '...', 32) as snippet
+            FROM text_blocks_fts tbf
+            JOIN text_blocks tb ON tbf.rowid = tb.rowid
+            LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num
+            WHERE text_blocks_fts MATCH ?
+            ORDER BY tbf.rank
+            LIMIT ?
+        """
+    else:
+        sql = """
+            SELECT
+                tb.page_id as leaf,
+                tb.page_id as page,
+                snippet(text_blocks_fts, 0, '→', '←', '...', 32) as snippet
+            FROM text_blocks_fts tbf
+            JOIN text_blocks tb ON tbf.rowid = tb.rowid
+            WHERE text_blocks_fts MATCH ?
+            ORDER BY tbf.rank
+            LIMIT ?
+        """
+
     results = []
     for row in db.execute(sql, [query, limit]).fetchall():
-        leaf = row[0] or 0
+        leaf = row[0] if row[0] is not None else 0
         results.append({
             'leaf': leaf,
-            'page': row[1] or '',
+            'page': str(row[1]) if row[1] is not None else '',
             'snippet': row[2],
             'url': f"https://archive.org/details/{ia_id}/page/leaf{leaf}"
         })

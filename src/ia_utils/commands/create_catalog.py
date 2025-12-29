@@ -86,15 +86,24 @@ def create_catalog(ctx, identifier, output_dir, output, full):
         blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, catalog_mode = \
             download_fast_mode(ia_id, logger, verbose)
 
-        if catalog_mode == 'fallback_hocr':
-            # Searchtext not available, fall back to hOCR
+        if catalog_mode == 'fallback_djvu':
+            # Searchtext not available, try DjVu XML
             if verbose:
-                logger.warning("   Searchtext files not available, falling back to hOCR...")
-            files = parser.parse_files(files_bytes)
-            blocks_list, pages_list, catalog_mode = download_hocr_mode(
-                ia_id, files, logger, verbose
+                logger.warning("   Searchtext not available, trying DjVu XML...")
+            blocks_list, pages_list, catalog_mode = download_djvu_mode(
+                ia_id, logger, verbose
             )
-            page_numbers_data = None
+            if catalog_mode == 'fallback_hocr':
+                # DjVu XML also not available, fall back to hOCR
+                if verbose:
+                    logger.warning("   DjVu XML not available, falling back to hOCR...")
+                files = parser.parse_files(files_bytes)
+                blocks_list, pages_list, catalog_mode = download_hocr_mode(
+                    ia_id, files, logger, verbose
+                )
+                page_numbers_data = None
+            else:
+                files = parser.parse_files(files_bytes)
         else:
             # Fast mode succeeded, parse files for later use
             files = parser.parse_files(files_bytes)
@@ -199,6 +208,50 @@ def download_hocr_mode(ia_id, files, logger, verbose):
     return blocks_list, None, 'hocr'
 
 
+def download_djvu_mode(ia_id, logger, verbose):
+    """Download and parse DjVu XML file.
+
+    Tries multiple filename patterns:
+    - {ia_id}_djvu.xml (standard)
+    - {ia_id}_djvuxml.xml (variant)
+    - {ia_id}_access_djvu.xml (variant)
+
+    Returns:
+        Tuple of (blocks_list, pages_list, catalog_mode)
+        If DjVu XML unavailable, catalog_mode='fallback_hocr' and blocks_list is None.
+    """
+    djvu_patterns = [
+        f"{ia_id}_djvu.xml",
+        f"{ia_id}_djvuxml.xml",
+        f"{ia_id}_access_djvu.xml",
+    ]
+
+    djvu_bytes = None
+    djvu_filename = None
+
+    for pattern in djvu_patterns:
+        if verbose:
+            logger.progress(f"   Trying {pattern}...", nl=False)
+        try:
+            djvu_bytes = ia_client.download_file_direct(ia_id, pattern)
+            djvu_filename = pattern
+            if verbose:
+                size_mb = len(djvu_bytes) / 1024 / 1024
+                logger.progress_done(f"✓ ({size_mb:.1f} MB)")
+            break
+        except Exception:
+            if verbose:
+                logger.progress_fail("✗")
+
+    if djvu_bytes is None:
+        return None, None, 'fallback_hocr'
+
+    blocks_list = parser.parse_djvu_xml(djvu_bytes, logger=logger)
+
+    # No pages table for DjVu mode (similar to hOCR)
+    return blocks_list, None, 'djvu'
+
+
 def download_fast_mode(ia_id, logger, verbose):
     """Download all files in parallel for fast mode.
 
@@ -238,7 +291,7 @@ def download_fast_mode(ia_id, logger, verbose):
 
     # Check if searchtext files were available
     if results.get('searchtext') is None or results.get('pageindex') is None:
-        return None, None, None, meta_bytes, files_bytes, 'fallback_hocr'
+        return None, None, None, meta_bytes, files_bytes, 'fallback_djvu'
 
     searchtext_content = parser.parse_searchtext(results['searchtext'])
     pageindex = parser.parse_pageindex(results['pageindex'])

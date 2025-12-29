@@ -297,3 +297,89 @@ def blocks_from_searchtext(
 
     logger.progress_done(f"✓ ({len(text_blocks)} blocks, {len(pages)} pages)")
     return text_blocks, pages
+
+
+def parse_djvu_xml(
+    djvu_bytes: bytes,
+    logger: Optional[Logger] = None
+) -> List[Dict[str, Any]]:
+    """Parse DjVu XML bytes and extract text blocks.
+
+    Uses streaming parser for memory efficiency with large files.
+
+    Args:
+        djvu_bytes: Raw DjVu XML bytes
+        logger: Optional logger instance
+
+    Returns:
+        List of text block dictionaries compatible with hocr schema
+    """
+    from lxml import etree
+    from io import BytesIO
+
+    if logger is None:
+        logger = Logger(verbose=False)
+
+    logger.progress("   Parsing DjVu XML...", nl=False)
+
+    blocks_list = []
+    context = etree.iterparse(BytesIO(djvu_bytes), events=('end',), tag='OBJECT')
+
+    for page_id, (event, obj) in enumerate(context):
+        block_number = 0
+
+        for para in obj.iter('PARAGRAPH'):
+            # Extract words and confidence values
+            words = []
+            confidences = []
+            for word in para.iter('WORD'):
+                if word.text:
+                    words.append(word.text)
+                    conf = word.get('x-confidence')
+                    if conf:
+                        try:
+                            confidences.append(int(conf))
+                        except ValueError:
+                            pass
+
+            if not words:
+                continue
+
+            text = ' '.join(words)
+            if not text.strip():
+                continue
+
+            # Count lines
+            line_count = len(list(para.iter('LINE')))
+
+            # Calculate average confidence
+            avg_confidence = mean(confidences) if confidences else None
+
+            # Generate hocr-compatible ID
+            hocr_id = f"par_{page_id:06d}_{block_number:06d}"
+
+            blocks_list.append({
+                'page_id': page_id,
+                'block_number': block_number,
+                'hocr_id': hocr_id,
+                'block_type': 'ocr_par',
+                'language': None,
+                'text_direction': None,
+                'bbox_x0': None,
+                'bbox_y0': None,
+                'bbox_x1': None,
+                'bbox_y1': None,
+                'text': text,
+                'line_count': line_count,
+                'length': len(text),
+                'avg_confidence': avg_confidence,
+                'avg_font_size': None,
+                'parent_carea_id': None,
+            })
+            block_number += 1
+
+        # Free memory
+        obj.clear()
+
+    logger.progress_done(f"✓ ({len(blocks_list)} blocks)")
+    return blocks_list
