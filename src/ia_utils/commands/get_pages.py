@@ -123,10 +123,10 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
     IMAGE SIZES:
 
     \b
-    small     ~100px (very fast)
-    medium    ~256px (default)
-    large     ~512px
-    original  JP2 lossless (individual files only)
+    small     ~300px width (very fast)
+    medium    ~600px width (default)
+    large     full resolution
+    original  full resolution JP2 lossless (individual files only)
 
     IMAGE PROCESSING (individual files only):
 

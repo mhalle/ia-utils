@@ -88,10 +88,10 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
     - For --pdf without page, returns base PDF URL
 
     IMAGE SIZES (for image URL, ignored with --viewer/--pdf):
-    - small: ~100px thumbnail
-    - medium: ~256px
-    - large: ~512px
-    - original: Full resolution JP2 (default)
+    - small: ~300px width
+    - medium: ~600px width
+    - large: full resolution
+    - original: full resolution JP2 (default)
 
     Examples:
         ia-utils get-url anatomicalatlasi00smit -l 5

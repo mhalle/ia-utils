@@ -50,10 +50,10 @@ def get_page(ctx, identifier, leaf, book, catalog, output, size, format, quality
     - Format: Inferred from suffix (.jpg, .png, .jp2) or --format flag
 
     IMAGE SIZES:
-    - small: ~100px (API, very fast)
-    - medium: ~256px (API, default, fast)
-    - large: ~512px (API, fast)
-    - original: JP2 lossless (slower, highest quality)
+    - small: ~300px width (API, very fast)
+    - medium: ~600px width (API, default, fast)
+    - large: full resolution (API, fast)
+    - original: full resolution JP2 lossless (slower, highest quality)
 
     Examples:
         ia-utils get-page anatomicalatlasi00smit -l 5 -o page.png
