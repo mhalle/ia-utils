@@ -34,8 +34,15 @@ def create_catalog(ctx, identifier, output_dir, output, full):
     - anatomicalatlasi00smit
     - https://archive.org/details/anatomicalatlasi00smit
 
-    By default, uses fast searchtext mode (text-only, smaller download).
-    Use --full to download complete hOCR with bounding boxes, confidence, etc.
+    CATALOG MODES (auto-detected):
+
+    \b
+    searchtext  Fast mode using pre-indexed text (default)
+    djvu        Fallback using DjVu XML (includes confidence)
+    hocr        Full mode with bounding boxes, font sizes (--full)
+
+    By default, tries searchtext first (fastest), then DjVu XML, then hOCR.
+    Use --full to force complete hOCR with bounding boxes, confidence, etc.
 
     OUTPUT:
     - Default filename: {author}-{title}-{year}_{ia_id}.sqlite
