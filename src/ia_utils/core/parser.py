@@ -223,18 +223,16 @@ def parse_hocr(hocr_bytes: bytes, logger: Optional[Logger] = None) -> List[Dict[
     return blocks_list
 
 
-def parse_searchtext(searchtext_bytes: bytes) -> List[str]:
-    """Parse searchtext.txt.gz content into list of text blocks.
+def parse_searchtext(searchtext_bytes: bytes) -> str:
+    """Parse searchtext.txt.gz content into text string.
 
     Args:
         searchtext_bytes: Raw (decompressed) searchtext content
 
     Returns:
-        List of text strings, one per block (line)
+        Full text content as string
     """
-    content = searchtext_bytes.decode('utf-8')
-    # Split on newlines, each line is one block
-    return content.split('\n')
+    return searchtext_bytes.decode('utf-8')
 
 
 def parse_pageindex(pageindex_bytes: bytes) -> List[Tuple[int, int, int, int]]:
@@ -252,14 +250,14 @@ def parse_pageindex(pageindex_bytes: bytes) -> List[Tuple[int, int, int, int]]:
 
 
 def blocks_from_searchtext(
-    searchtext_lines: List[str],
+    searchtext_content: str,
     pageindex: List[Tuple[int, int, int, int]],
     logger: Optional[Logger] = None
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Build text_blocks and pages records from searchtext and pageindex.
 
     Args:
-        searchtext_lines: List of text blocks (one per line)
+        searchtext_content: Full searchtext content as string
         pageindex: List of (char_start, char_end, hocr_byte_start, hocr_byte_end)
         logger: Optional logger instance
 
@@ -273,19 +271,10 @@ def blocks_from_searchtext(
 
     logger.progress("   Parsing searchtext...", nl=False)
 
-    # Build cumulative character positions for each line
-    # Each line ends with a newline, so we add 1 for each
-    line_starts = []
-    pos = 0
-    for line in searchtext_lines:
-        line_starts.append(pos)
-        pos += len(line) + 1  # +1 for newline
-
     text_blocks = []
     pages = []
 
     for page_id, (char_start, char_end, hocr_start, hocr_end) in enumerate(pageindex):
-        # Store page info for potential enrichment later
         pages.append({
             'page_id': page_id,
             'char_start': char_start,
@@ -294,26 +283,17 @@ def blocks_from_searchtext(
             'hocr_byte_end': hocr_end,
         })
 
-        # Find which lines fall within this page's character range
-        block_number = 0
-        for line_idx, line_start in enumerate(line_starts):
-            if line_idx >= len(searchtext_lines):
-                break
-
-            line = searchtext_lines[line_idx]
-            line_end = line_start + len(line)
-
-            # Check if this line overlaps with the page's character range
-            if line_start < char_end and line_end > char_start:
-                text = line.strip()
-                if text:  # Skip empty blocks
-                    text_blocks.append({
-                        'page_id': page_id,
-                        'block_number': block_number,
-                        'text': text,
-                        'length': len(text),
-                    })
-                    block_number += 1
+        # Slice the page's text and split into lines
+        page_text = searchtext_content[char_start:char_end]
+        for block_number, line in enumerate(page_text.split('\n')):
+            text = line.strip()
+            if text:
+                text_blocks.append({
+                    'page_id': page_id,
+                    'block_number': block_number,
+                    'text': text,
+                    'length': len(text),
+                })
 
     logger.progress_done(f"✓ ({len(text_blocks)} blocks, {len(pages)} pages)")
     return text_blocks, pages

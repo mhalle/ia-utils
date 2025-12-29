@@ -1,6 +1,7 @@
 """Internet Archive API client operations."""
 
-from typing import Optional, Dict, Any, Iterable, List
+from typing import Optional, Dict, Any, Iterable, List, Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import gzip
 import json
 import requests
@@ -32,6 +33,25 @@ def get_item(ia_id: str) -> ia.Item:
         return ia.get_item(ia_id)
     except Exception as e:
         raise Exception(f"Failed to fetch item {ia_id}: {e}")
+
+
+def download_file_direct(ia_id: str, filename: str, timeout: int = 120) -> bytes:
+    """Download a file directly without verification.
+
+    Use when you've already confirmed the file exists (e.g., from files.xml).
+
+    Args:
+        ia_id: Internet Archive identifier
+        filename: Name of file to download
+        timeout: Request timeout in seconds
+
+    Returns:
+        File bytes
+    """
+    url = f"https://archive.org/download/{ia_id}/{filename}"
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    return response.content
 
 
 def download_file(ia_id: str, filename: str, logger: Optional[Logger] = None,
@@ -66,11 +86,7 @@ def download_file(ia_id: str, filename: str, logger: Optional[Logger] = None,
         if verbose:
             logger.progress(f"   Downloading {filename}...", nl=False)
 
-        # Build download URL from archive.org
-        url = f"https://archive.org/download/{ia_id}/{filename}"
-        response = requests.get(url, timeout=120)
-        response.raise_for_status()
-        content = response.content
+        content = download_file_direct(ia_id, filename)
 
         if verbose:
             size_mb = len(content) / 1024 / 1024
@@ -252,3 +268,51 @@ def get_searchtext_files(ia_id: str) -> tuple:
         Tuple of (searchtext_filename, pageindex_filename)
     """
     return (f"{ia_id}{SEARCHTEXT_SUFFIX}", f"{ia_id}{PAGEINDEX_SUFFIX}")
+
+
+def download_parallel(
+    ia_id: str,
+    downloads: List[Dict[str, Any]],
+    logger: Optional[Logger] = None,
+    verbose: bool = True
+) -> Dict[str, Any]:
+    """Download multiple files in parallel.
+
+    Args:
+        ia_id: Internet Archive identifier
+        downloads: List of dicts with 'key', 'filename', and optional 'gzipped', 'json' flags
+        logger: Optional logger instance
+        verbose: Whether to print progress
+
+    Returns:
+        Dict mapping key to downloaded content (bytes, str, or dict depending on flags)
+    """
+    if logger is None:
+        logger = Logger(verbose=verbose)
+
+    results = {}
+
+    def fetch(item: Dict[str, Any]) -> tuple:
+        key = item['key']
+        filename = item['filename']
+        try:
+            content = download_file_direct(ia_id, filename)
+            if item.get('gzipped'):
+                content = gzip.decompress(content)
+            if item.get('json'):
+                content = json.loads(content.decode('utf-8'))
+            return (key, content, None)
+        except Exception as e:
+            if item.get('optional'):
+                return (key, None, None)
+            return (key, None, e)
+
+    with ThreadPoolExecutor(max_workers=len(downloads)) as executor:
+        futures = {executor.submit(fetch, item): item for item in downloads}
+        for future in as_completed(futures):
+            key, content, error = future.result()
+            if error and not futures[future].get('optional'):
+                raise error
+            results[key] = content
+
+    return results

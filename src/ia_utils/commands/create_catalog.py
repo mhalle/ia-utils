@@ -58,54 +58,60 @@ def create_catalog(ctx, identifier, output_dir, output, full):
         mode_str = "full (hOCR)" if full else "fast (searchtext)"
         logger.section(f"Building catalog for: {ia_id} [{mode_str}]")
 
-    # Download common files (into memory)
     if verbose:
         logger.subsection("1. Downloading files from Internet Archive...")
 
-    try:
-        meta_bytes = ia_client.download_file(ia_id, f"{ia_id}_meta.xml", logger=logger, verbose=verbose)
-        files_bytes = ia_client.download_file(ia_id, f"{ia_id}_files.xml", logger=logger, verbose=verbose)
-    except Exception:
-        sys.exit(1)
-
-    # Parse files.xml to check available files
-    files = parser.parse_files(files_bytes)
-
-    # Determine which mode to use
     if full:
-        # Full mode: use hOCR
+        # Full mode: download metadata first, then hOCR
+        if verbose:
+            logger.progress("   Downloading metadata files...", nl=False)
+        try:
+            meta_bytes = ia_client.download_file_direct(ia_id, f"{ia_id}_meta.xml")
+            files_bytes = ia_client.download_file_direct(ia_id, f"{ia_id}_files.xml")
+            if verbose:
+                logger.progress_done("✓")
+        except Exception as e:
+            if verbose:
+                logger.progress_fail("✗")
+            logger.error(f"Failed to download metadata: {e}")
+            sys.exit(1)
+
+        files = parser.parse_files(files_bytes)
         blocks_list, pages_list, catalog_mode = download_hocr_mode(
             ia_id, files, logger, verbose
         )
+        page_numbers_data = None
     else:
-        # Fast mode: try searchtext, fall back to hOCR if not available
-        searchtext_file, pageindex_file = ia_client.get_searchtext_files(ia_id)
-        searchtext_available = any(f['filename'] == searchtext_file for f in files)
-        pageindex_available = any(f['filename'] == pageindex_file for f in files)
+        # Fast mode: download ALL files in parallel
+        blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, catalog_mode = \
+            download_fast_mode(ia_id, logger, verbose)
 
-        if searchtext_available and pageindex_available:
-            blocks_list, pages_list, catalog_mode = download_searchtext_mode(
-                ia_id, searchtext_file, pageindex_file, logger, verbose
-            )
-        else:
+        if catalog_mode == 'fallback_hocr':
+            # Searchtext not available, fall back to hOCR
             if verbose:
                 logger.warning("   Searchtext files not available, falling back to hOCR...")
+            files = parser.parse_files(files_bytes)
             blocks_list, pages_list, catalog_mode = download_hocr_mode(
                 ia_id, files, logger, verbose
             )
-
-    # Try to download page numbers mapping
-    if verbose:
-        logger.progress("   Downloading page numbers mapping...", nl=False)
-    pn_candidates = [f['filename'] for f in files if f['filename'].endswith('_page_numbers.json')]
-    page_numbers_data = None
-    if pn_candidates:
-        page_numbers_data = ia_client.download_json(ia_id, pn_candidates[0], logger=logger, verbose=False)
-    if verbose:
-        if page_numbers_data and 'pages' in page_numbers_data:
-            logger.progress_done(f"✓ ({len(page_numbers_data['pages'])} pages)")
+            page_numbers_data = None
         else:
-            logger.progress_done("(not available)")
+            # Fast mode succeeded, parse files for later use
+            files = parser.parse_files(files_bytes)
+
+    # For hOCR mode, download page numbers separately (files already parsed above)
+    if catalog_mode == 'hocr':
+        if verbose:
+            logger.progress("   Downloading page numbers mapping...", nl=False)
+        pn_candidates = [f['filename'] for f in files if f['filename'].endswith('_page_numbers.json')]
+        page_numbers_data = None
+        if pn_candidates:
+            page_numbers_data = ia_client.download_json(ia_id, pn_candidates[0], logger=logger, verbose=False)
+        if verbose:
+            if page_numbers_data and 'pages' in page_numbers_data:
+                logger.progress_done(f"✓ ({len(page_numbers_data['pages'])} pages)")
+            else:
+                logger.progress_done("(not available)")
 
     # Parse metadata
     if verbose:
@@ -193,27 +199,53 @@ def download_hocr_mode(ia_id, files, logger, verbose):
     return blocks_list, None, 'hocr'
 
 
-def download_searchtext_mode(ia_id, searchtext_file, pageindex_file, logger, verbose):
-    """Download and parse searchtext + pageindex for fast mode.
+def download_fast_mode(ia_id, logger, verbose):
+    """Download all files in parallel for fast mode.
+
+    Downloads meta.xml, files.xml, searchtext, pageindex, and page_numbers
+    all in parallel. If searchtext files aren't available, signals fallback.
 
     Returns:
-        Tuple of (blocks_list, pages_list, catalog_mode)
+        Tuple of (blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, catalog_mode)
+        If searchtext unavailable, catalog_mode='fallback_hocr' and blocks_list/pages_list are None.
     """
+    if verbose:
+        logger.progress("   Downloading all files (parallel)...", nl=False)
+
+    searchtext_file, pageindex_file = ia_client.get_searchtext_files(ia_id)
+
+    downloads = [
+        {'key': 'meta', 'filename': f"{ia_id}_meta.xml"},
+        {'key': 'files', 'filename': f"{ia_id}_files.xml"},
+        {'key': 'searchtext', 'filename': searchtext_file, 'gzipped': True, 'optional': True},
+        {'key': 'pageindex', 'filename': pageindex_file, 'gzipped': True, 'optional': True},
+        {'key': 'page_numbers', 'filename': f"{ia_id}_page_numbers.json", 'json': True, 'optional': True},
+    ]
+
     try:
-        searchtext_bytes = ia_client.download_gzipped(
-            ia_id, searchtext_file, logger=logger, verbose=verbose
-        )
-        pageindex_bytes = ia_client.download_gzipped(
-            ia_id, pageindex_file, logger=logger, verbose=verbose
-        )
-    except Exception:
+        results = ia_client.download_parallel(ia_id, downloads, logger=logger, verbose=False)
+    except Exception as e:
+        if verbose:
+            logger.progress_fail("✗")
+        logger.error(f"Download failed: {e}")
         sys.exit(1)
 
-    searchtext_lines = parser.parse_searchtext(searchtext_bytes)
-    pageindex = parser.parse_pageindex(pageindex_bytes)
+    if verbose:
+        logger.progress_done("✓")
+
+    meta_bytes = results['meta']
+    files_bytes = results['files']
+
+    # Check if searchtext files were available
+    if results.get('searchtext') is None or results.get('pageindex') is None:
+        return None, None, None, meta_bytes, files_bytes, 'fallback_hocr'
+
+    searchtext_content = parser.parse_searchtext(results['searchtext'])
+    pageindex = parser.parse_pageindex(results['pageindex'])
+    page_numbers_data = results.get('page_numbers')
 
     blocks_list, pages_list = parser.blocks_from_searchtext(
-        searchtext_lines, pageindex, logger=logger
+        searchtext_content, pageindex, logger=logger
     )
 
-    return blocks_list, pages_list, 'searchtext'
+    return blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, 'searchtext'

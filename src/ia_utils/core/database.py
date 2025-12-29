@@ -125,6 +125,11 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
 
     db = sqlite_utils.Database(output_path)
 
+    # Drop existing tables for clean recreation
+    for table in ['text_blocks_fts', 'pages_fts', 'text_blocks', 'pages',
+                  'page_numbers', 'archive_files', 'document_metadata', 'catalog_metadata']:
+        db[table].drop(ignore=True)
+
     # === TABLE 1: CATALOG METADATA (our computed fields) ===
     logger.progress("     Creating catalog_metadata...", nl=False)
 
@@ -168,7 +173,7 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
             'download_url': f'https://archive.org/download/{ia_id}/{file_info["filename"]}',
         })
 
-    db['archive_files'].insert_all(files_records, pk='filename')
+    db['archive_files'].insert_all(files_records, pk='filename', replace=True)
     logger.progress_done(f"✓ ({len(files)} files)")
 
     # === TABLE 4: TEXT BLOCKS ===
