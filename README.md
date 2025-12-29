@@ -5,7 +5,7 @@ A command-line tool for working with Internet Archive books and documents. Build
 ## Features
 
 - **Search Internet Archive** - Query IA metadata with filters for year, creator, subject, collection, language, and more
-- **Create local catalogs** - Build SQLite databases from any IA document with OCR (hOCR format)
+- **Create local catalogs** - Build SQLite databases from any IA document with OCR (searchtext, hOCR, or DjVu)
 - **Full-text search** - Search OCR text with FTS5 support for phrases, boolean operators, and proximity queries
 - **Download pages** - Get individual pages or batches as JPG/PNG/JP2, with optional image processing
 - **Download PDFs** - Fetch PDFs directly from Internet Archive
@@ -73,6 +73,8 @@ ia-utils search-ia --subject "anatomy" -f identifier -f title --output-format js
 - `--language` / `--lang` - Language code (eng, ger, fre, etc.)
 - `--format` / `-F` - File format (DjVu, PDF, EPUB, etc.)
 - `--has-ocr` - Only items with OCR text
+- `--text` - Search inside book text (full-text search) instead of metadata
+- `--include-unavailable` - Include print-disabled and removed items (excluded by default)
 
 #### `info` - Display Metadata
 
@@ -93,7 +95,7 @@ ia-utils info catalog.sqlite -f title -f page_count --output-format json
 
 #### `create-catalog` - Build Searchable Database
 
-Create a SQLite catalog from any IA document with hOCR:
+Create a SQLite catalog from any IA document with OCR:
 
 ```bash
 # Create catalog (auto-generates filename from metadata)
@@ -107,7 +109,15 @@ ia-utils create-catalog anatomicalatlasi00smit -o anatomy.sqlite
 
 # From URL
 ia-utils create-catalog https://archive.org/details/anatomicalatlasi00smit
+
+# Use full hOCR mode (slower, includes bounding boxes and confidence)
+ia-utils create-catalog anatomicalatlasi00smit --full
 ```
+
+**Catalog modes** (auto-detected):
+- `searchtext` - Fast mode using pre-indexed searchtext (default, text-only)
+- `djvu` - Fallback using DjVu XML (includes confidence scores)
+- `hocr` - Full mode with bounding boxes, font sizes, confidence (use `--full`)
 
 The catalog includes:
 - Document metadata (title, creator, date, subject, etc.)
@@ -169,7 +179,7 @@ ia-utils get-page -c catalog.sqlite -l 42 -o page.jpg
 # By printed page number
 ia-utils get-page -c catalog.sqlite -b 100 -o page.jpg
 
-# Different sizes: small (~100px), medium (~256px), large (~512px), original (JP2)
+# Different sizes: small (~300px), medium (~600px), large (full), original (JP2)
 ia-utils get-page -c catalog.sqlite -l 42 --size original -o page.jp2
 
 # Image processing
@@ -285,7 +295,8 @@ Catalogs are SQLite databases with these tables:
 | Table | Description |
 |-------|-------------|
 | `document_metadata` | Title, creator, date, subject, etc. |
-| `text_blocks` | Individual OCR text blocks with bounding boxes, confidence |
+| `catalog_metadata` | Catalog info: slug, created_at, catalog_mode |
+| `text_blocks` | OCR text blocks (hOCR/DjVu modes include bounding boxes, confidence) |
 | `pages_fts` | FTS5 index for page-level search |
 | `text_blocks_fts` | FTS5 index for block-level search |
 | `page_numbers` | Leaf-to-printed-page mapping |
