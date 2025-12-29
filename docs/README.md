@@ -106,7 +106,7 @@ ia-utils get-url -c catalog.sqlite -l 175 --viewer
 --collection wellcome   # IA collection
 --has-ocr              # Only items with OCR
 -s downloads:desc      # Sort by popularity
---text                 # Search inside book text (not just metadata)
+--text "term"          # Search inside book text (repeatable)
 ```
 
 ### Output Formats

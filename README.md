@@ -89,7 +89,7 @@ ia-utils search-ia --subject "anatomy" -f identifier -f title --output-format js
 - `--language` / `--lang` - Language code (eng, ger, fre, etc.)
 - `--format` / `-F` - File format (DjVu, PDF, EPUB, etc.)
 - `--has-ocr` - Only items with OCR text
-- `--text` - Search inside book text (full-text search) instead of metadata
+- `--text` - Search inside book text (FTS), repeatable (e.g., `--text "femur" --text "anatomy"`)
 - `--include-unavailable` - Include print-disabled and removed items (excluded by default)
 
 #### `info` - Display Metadata

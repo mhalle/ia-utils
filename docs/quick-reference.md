@@ -38,7 +38,7 @@ ia-utils get-page -c catalog.sqlite -l <leaf> -o page.jpg
 -s date:asc             # Sort by date
 -l 20                   # Limit results
 -f field1 -f field2     # Select fields
---text                  # Search inside book text (not just metadata)
+--text "term"           # Search inside book text (repeatable)
 ```
 
 ## Search Catalog (`search-catalog`)

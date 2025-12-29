@@ -125,7 +125,13 @@ Default fields: identifier, url, title, creator, date, date_year, mediatype, pri
 ### Full-Text Search (Inside Books)
 ```bash
 # Search inside book content, not just metadata
-ia-utils search-ia -q "circle of willis" --text --year 1900-1940 -m texts
+ia-utils search-ia --text "circle of willis" --year 1900-1940 -m texts
+
+# Multiple text terms (AND)
+ia-utils search-ia --text "femur" --text "anatomy" -m texts
+
+# Combine metadata search with text search
+ia-utils search-ia -q "anatomy atlas" --text "femur" --year 1900-1940 -m texts
 ```
 
 ### Searching for Collections
