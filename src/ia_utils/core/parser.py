@@ -221,3 +221,99 @@ def parse_hocr(hocr_bytes: bytes, logger: Optional[Logger] = None) -> List[Dict[
 
     logger.progress_done(f"✓ ({total_blocks} blocks)")
     return blocks_list
+
+
+def parse_searchtext(searchtext_bytes: bytes) -> List[str]:
+    """Parse searchtext.txt.gz content into list of text blocks.
+
+    Args:
+        searchtext_bytes: Raw (decompressed) searchtext content
+
+    Returns:
+        List of text strings, one per block (line)
+    """
+    content = searchtext_bytes.decode('utf-8')
+    # Split on newlines, each line is one block
+    return content.split('\n')
+
+
+def parse_pageindex(pageindex_bytes: bytes) -> List[Tuple[int, int, int, int]]:
+    """Parse pageindex.json.gz content into list of page offset tuples.
+
+    Args:
+        pageindex_bytes: Raw (decompressed) JSON content
+
+    Returns:
+        List of tuples: (char_start, char_end, hocr_byte_start, hocr_byte_end)
+        One tuple per page (leaf).
+    """
+    import json
+    return [tuple(page) for page in json.loads(pageindex_bytes)]
+
+
+def blocks_from_searchtext(
+    searchtext_lines: List[str],
+    pageindex: List[Tuple[int, int, int, int]],
+    logger: Optional[Logger] = None
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Build text_blocks and pages records from searchtext and pageindex.
+
+    Args:
+        searchtext_lines: List of text blocks (one per line)
+        pageindex: List of (char_start, char_end, hocr_byte_start, hocr_byte_end)
+        logger: Optional logger instance
+
+    Returns:
+        Tuple of (text_blocks, pages) where:
+        - text_blocks: List of dicts with page_id, block_number, text, length
+        - pages: List of dicts with page_id, char_start, char_end, hocr_byte_start, hocr_byte_end
+    """
+    if logger is None:
+        logger = Logger(verbose=False)
+
+    logger.progress("   Parsing searchtext...", nl=False)
+
+    # Build cumulative character positions for each line
+    # Each line ends with a newline, so we add 1 for each
+    line_starts = []
+    pos = 0
+    for line in searchtext_lines:
+        line_starts.append(pos)
+        pos += len(line) + 1  # +1 for newline
+
+    text_blocks = []
+    pages = []
+
+    for page_id, (char_start, char_end, hocr_start, hocr_end) in enumerate(pageindex):
+        # Store page info for potential enrichment later
+        pages.append({
+            'page_id': page_id,
+            'char_start': char_start,
+            'char_end': char_end,
+            'hocr_byte_start': hocr_start,
+            'hocr_byte_end': hocr_end,
+        })
+
+        # Find which lines fall within this page's character range
+        block_number = 0
+        for line_idx, line_start in enumerate(line_starts):
+            if line_idx >= len(searchtext_lines):
+                break
+
+            line = searchtext_lines[line_idx]
+            line_end = line_start + len(line)
+
+            # Check if this line overlaps with the page's character range
+            if line_start < char_end and line_end > char_start:
+                text = line.strip()
+                if text:  # Skip empty blocks
+                    text_blocks.append({
+                        'page_id': page_id,
+                        'block_number': block_number,
+                        'text': text,
+                        'length': len(text),
+                    })
+                    block_number += 1
+
+    logger.progress_done(f"✓ ({len(text_blocks)} blocks, {len(pages)} pages)")
+    return text_blocks, pages

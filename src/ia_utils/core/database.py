@@ -98,6 +98,7 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
                            metadata: List[tuple], files: List[Dict],
                            blocks: List[Dict], page_numbers: Optional[Dict] = None,
                            catalog_mode: CatalogMode = 'hocr',
+                           pages: Optional[List[Dict]] = None,
                            logger: Optional[Logger] = None) -> Path:
     """Create a new catalog database with all tables and indexes.
 
@@ -110,6 +111,7 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
         blocks: List of text blocks from hOCR or searchtext
         page_numbers: Optional page number mappings
         catalog_mode: 'searchtext', 'mixed', or 'hocr'
+        pages: Optional page offset info for enrichment (searchtext mode)
         logger: Optional logger instance
 
     Returns:
@@ -179,7 +181,13 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
         db['text_blocks'].insert_all(blocks, pk='hocr_id', replace=True)
     logger.progress_done(f"✓ ({len(blocks)} blocks)")
 
-    # === TABLE 5: PAGE NUMBERS (MAPPING) ===
+    # === TABLE 5: PAGES (for searchtext enrichment) ===
+    if pages:
+        logger.progress("     Creating pages...", nl=False)
+        db['pages'].insert_all(pages, pk='page_id', replace=True)
+        logger.progress_done(f"✓ ({len(pages)} pages)")
+
+    # === TABLE 6: PAGE NUMBERS (MAPPING) ===
     if page_numbers and 'pages' in page_numbers:
         logger.progress("     Creating page_numbers...", nl=False)
 

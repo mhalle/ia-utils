@@ -1,11 +1,19 @@
 """Internet Archive API client operations."""
 
 from typing import Optional, Dict, Any, Iterable, List
+import gzip
 import json
 import requests
 import internetarchive as ia
 
 from ia_utils.utils.logger import Logger
+
+# File suffixes for IA derivative files
+HOCR_SUFFIX = "_hocr.html"
+SEARCHTEXT_SUFFIX = "_hocr_searchtext.txt.gz"
+PAGEINDEX_SUFFIX = "_hocr_pageindex.json.gz"
+META_SUFFIX = "_meta.xml"
+FILES_SUFFIX = "_files.xml"
 
 
 def get_item(ia_id: str) -> ia.Item:
@@ -195,3 +203,52 @@ def search_items(query: str,
             logger.progress_fail()
         logger.error(f"Internet Archive search failed: {exc}")
         raise
+
+
+def download_gzipped(ia_id: str, filename: str, logger: Optional[Logger] = None,
+                     verbose: bool = True) -> bytes:
+    """Download a gzipped file from Internet Archive and return decompressed bytes.
+
+    Args:
+        ia_id: Internet Archive identifier
+        filename: Name of gzipped file to download
+        logger: Optional logger instance
+        verbose: Whether to print progress
+
+    Returns:
+        Decompressed file bytes
+
+    Raises:
+        Exception: If download fails
+    """
+    compressed = download_file(ia_id, filename, logger=logger, verbose=verbose)
+    return gzip.decompress(compressed)
+
+
+def file_exists(ia_id: str, filename: str) -> bool:
+    """Check if a file exists in an Internet Archive item.
+
+    Args:
+        ia_id: Internet Archive identifier
+        filename: Name of file to check
+
+    Returns:
+        True if file exists, False otherwise
+    """
+    try:
+        item = get_item(ia_id)
+        return item.get_file(filename) is not None
+    except Exception:
+        return False
+
+
+def get_searchtext_files(ia_id: str) -> tuple:
+    """Get filenames for searchtext and pageindex files.
+
+    Args:
+        ia_id: Internet Archive identifier
+
+    Returns:
+        Tuple of (searchtext_filename, pageindex_filename)
+    """
+    return (f"{ia_id}{SEARCHTEXT_SUFFIX}", f"{ia_id}{PAGEINDEX_SUFFIX}")

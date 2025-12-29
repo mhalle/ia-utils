@@ -24,13 +24,18 @@ def extract_ia_id(input_str: str) -> str:
 @click.option('-d', '--dir', 'output_dir', type=click.Path(file_okay=False),
               help='Output directory (default: current directory)')
 @click.option('-o', '--output', type=str, help='Override output filename')
+@click.option('--full', is_flag=True, default=False,
+              help='Download full hOCR for complete metadata (slower)')
 @click.pass_context
-def create_catalog(ctx, identifier, output_dir, output):
+def create_catalog(ctx, identifier, output_dir, output, full):
     """Create a catalog database from an Internet Archive document.
 
     IDENTIFIER can be an IA ID or full URL:
     - anatomicalatlasi00smit
     - https://archive.org/details/anatomicalatlasi00smit
+
+    By default, uses fast searchtext mode (text-only, smaller download).
+    Use --full to download complete hOCR with bounding boxes, confidence, etc.
 
     OUTPUT:
     - Default filename: {author}-{title}-{year}_{ia_id}.sqlite
@@ -39,6 +44,7 @@ def create_catalog(ctx, identifier, output_dir, output):
 
     Examples:
         ia-utils create-catalog anatomicalatlasi00smit
+        ia-utils create-catalog anatomicalatlasi00smit --full
         ia-utils create-catalog anatomicalatlasi00smit -d ./catalogs/
         ia-utils create-catalog anatomicalatlasi00smit -o anatomy.sqlite
     """
@@ -49,9 +55,10 @@ def create_catalog(ctx, identifier, output_dir, output):
 
     # Show header when verbose
     if verbose:
-        logger.section(f"Building catalog for: {ia_id}")
+        mode_str = "full (hOCR)" if full else "fast (searchtext)"
+        logger.section(f"Building catalog for: {ia_id} [{mode_str}]")
 
-    # Download files (into memory)
+    # Download common files (into memory)
     if verbose:
         logger.subsection("1. Downloading files from Internet Archive...")
 
@@ -61,20 +68,33 @@ def create_catalog(ctx, identifier, output_dir, output):
     except Exception:
         sys.exit(1)
 
-    # Parse files.xml to find actual hOCR filename (may differ from standard naming)
+    # Parse files.xml to check available files
     files = parser.parse_files(files_bytes)
-    hocr_candidates = [f['filename'] for f in files if f['filename'].endswith('_hocr.html')]
-    if not hocr_candidates:
-        logger.error(f"No hOCR file found for {ia_id}")
-        sys.exit(1)
-    hocr_filename = hocr_candidates[0]
 
-    try:
-        hocr_bytes = ia_client.download_file(ia_id, hocr_filename, logger=logger, verbose=verbose)
-    except Exception:
-        sys.exit(1)
+    # Determine which mode to use
+    if full:
+        # Full mode: use hOCR
+        blocks_list, pages_list, catalog_mode = download_hocr_mode(
+            ia_id, files, logger, verbose
+        )
+    else:
+        # Fast mode: try searchtext, fall back to hOCR if not available
+        searchtext_file, pageindex_file = ia_client.get_searchtext_files(ia_id)
+        searchtext_available = any(f['filename'] == searchtext_file for f in files)
+        pageindex_available = any(f['filename'] == pageindex_file for f in files)
 
-    # Try to download page numbers mapping (use filename from files list if available)
+        if searchtext_available and pageindex_available:
+            blocks_list, pages_list, catalog_mode = download_searchtext_mode(
+                ia_id, searchtext_file, pageindex_file, logger, verbose
+            )
+        else:
+            if verbose:
+                logger.warning("   Searchtext files not available, falling back to hOCR...")
+            blocks_list, pages_list, catalog_mode = download_hocr_mode(
+                ia_id, files, logger, verbose
+            )
+
+    # Try to download page numbers mapping
     if verbose:
         logger.progress("   Downloading page numbers mapping...", nl=False)
     pn_candidates = [f['filename'] for f in files if f['filename'].endswith('_page_numbers.json')]
@@ -87,9 +107,9 @@ def create_catalog(ctx, identifier, output_dir, output):
         else:
             logger.progress_done("(not available)")
 
-    # Parse files
+    # Parse metadata
     if verbose:
-        logger.subsection("2. Parsing source files...")
+        logger.subsection("2. Parsing metadata...")
 
     metadata = parser.parse_metadata(meta_bytes)
     # Get title from metadata tuples for display
@@ -98,10 +118,9 @@ def create_catalog(ctx, identifier, output_dir, output):
         logger.info(f"   Title: {title}")
         logger.info(f"   ✓ {len(files)} file formats")
 
-    blocks_list = parser.parse_hocr(hocr_bytes, logger=logger)
     pages_set = set(block['page_id'] for block in blocks_list)
     if verbose:
-        logger.info(f"   ✓ {len(pages_set)} pages")
+        logger.info(f"   ✓ {len(pages_set)} pages, {len(blocks_list)} blocks")
 
     # Generate slug (always auto-generated, used for filename and stored in DB)
     if verbose:
@@ -134,6 +153,8 @@ def create_catalog(ctx, identifier, output_dir, output):
             files,
             blocks_list,
             page_numbers_data,
+            catalog_mode=catalog_mode,
+            pages=pages_list,
             logger=logger
         )
     except Exception as e:
@@ -141,8 +162,58 @@ def create_catalog(ctx, identifier, output_dir, output):
         sys.exit(1)
 
     if verbose:
-        logger.section(f"Complete")
+        logger.section("Complete")
         logger.info(f"✓ Database created: {output_path}")
-        logger.info(f"✓ Slug: {final_slug}")
+        logger.info(f"✓ Mode: {catalog_mode}")
     else:
         click.echo(output_path)
+
+
+def download_hocr_mode(ia_id, files, logger, verbose):
+    """Download and parse hOCR file for full metadata.
+
+    Returns:
+        Tuple of (blocks_list, pages_list, catalog_mode)
+    """
+    # Find hOCR filename
+    hocr_candidates = [f['filename'] for f in files if f['filename'].endswith('_hocr.html')]
+    if not hocr_candidates:
+        logger.error(f"No hOCR file found for {ia_id}")
+        sys.exit(1)
+    hocr_filename = hocr_candidates[0]
+
+    try:
+        hocr_bytes = ia_client.download_file(ia_id, hocr_filename, logger=logger, verbose=verbose)
+    except Exception:
+        sys.exit(1)
+
+    blocks_list = parser.parse_hocr(hocr_bytes, logger=logger)
+
+    # No pages table for hOCR mode (blocks have full metadata)
+    return blocks_list, None, 'hocr'
+
+
+def download_searchtext_mode(ia_id, searchtext_file, pageindex_file, logger, verbose):
+    """Download and parse searchtext + pageindex for fast mode.
+
+    Returns:
+        Tuple of (blocks_list, pages_list, catalog_mode)
+    """
+    try:
+        searchtext_bytes = ia_client.download_gzipped(
+            ia_id, searchtext_file, logger=logger, verbose=verbose
+        )
+        pageindex_bytes = ia_client.download_gzipped(
+            ia_id, pageindex_file, logger=logger, verbose=verbose
+        )
+    except Exception:
+        sys.exit(1)
+
+    searchtext_lines = parser.parse_searchtext(searchtext_bytes)
+    pageindex = parser.parse_pageindex(pageindex_bytes)
+
+    blocks_list, pages_list = parser.blocks_from_searchtext(
+        searchtext_lines, pageindex, logger=logger
+    )
+
+    return blocks_list, pages_list, 'searchtext'
