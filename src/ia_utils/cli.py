@@ -2,6 +2,7 @@
 
 import click
 
+from ia_utils import __version__
 from ia_utils.commands.create_catalog import create_catalog
 from ia_utils.commands.info import info
 from ia_utils.commands.get_page import get_page
@@ -15,6 +16,7 @@ from ia_utils.commands.rebuild_catalog import rebuild_catalog
 
 
 @click.group()
+@click.version_option(version=__version__, prog_name='ia-utils')
 @click.option('-v', '--verbose', is_flag=True, help='Verbose output')
 @click.pass_context
 def cli(ctx, verbose):
