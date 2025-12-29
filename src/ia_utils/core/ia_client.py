@@ -161,6 +161,7 @@ def search_items(query: str,
                  page: int = 1,
                  rows: int = 20,
                  params: Optional[Dict[str, Any]] = None,
+                 full_text_search: bool = False,
                  logger: Optional[Logger] = None,
                  verbose: bool = False) -> Dict[str, Any]:
     """Search Archive.org items with pagination support.
@@ -172,6 +173,7 @@ def search_items(query: str,
         page: Page number (1-indexed).
         rows: Number of rows per page.
         params: Additional query parameters passed to IA.
+        full_text_search: Search inside book text (FTS) instead of metadata.
         logger: Optional logger for diagnostics.
         verbose: Whether to emit verbose progress messages.
 
@@ -197,7 +199,8 @@ def search_items(query: str,
             query,
             fields=list(fields) if fields else None,
             sorts=list(sorts) if sorts else None,
-            params=base_params
+            params=base_params,
+            full_text_search=full_text_search
         )
         results: List[Dict[str, Any]] = []
         for idx, item in enumerate(search):

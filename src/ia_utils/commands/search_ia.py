@@ -79,9 +79,23 @@ def _build_query(base_query: str,
                  subjects: Iterable[str] = (),
                  sources: Iterable[str] = (),
                  year: str | None = None,
-                 has_ocr: bool = False) -> str:
+                 has_ocr: bool = False,
+                 text_search: bool = False,
+                 available_only: bool = True) -> str:
     """Compose final IA query string including optional filters."""
-    components = [f"({base_query.strip()})" if base_query.strip() else '*:*']
+    if base_query.strip():
+        if text_search:
+            # Wrap query in text:(...) for full-text search inside books
+            components = [f'text:({base_query.strip()})']
+        else:
+            components = [f"({base_query.strip()})"]
+    else:
+        components = ['*:*']
+
+    # By default, exclude unavailable items (print-disabled, removed)
+    if available_only:
+        components.append("NOT collection:printdisabled")
+        components.append("NOT indexflag:removed")
 
     def _quote(value: str) -> str:
         escaped = value.replace('"', '\\"')
@@ -266,6 +280,8 @@ def _build_stats_payload(query: str,
 @click.option('--subject', 'subjects', multiple=True, help='Filter by subject (repeatable).')
 @click.option('--source', 'sources', multiple=True, help='Filter by source/contributor (repeatable).')
 @click.option('--has-ocr', is_flag=True, help='Only items with OCR text.')
+@click.option('--text', 'text_search', is_flag=True, help='Search inside book text (FTS) instead of metadata.')
+@click.option('--include-unavailable', is_flag=True, help='Include print-disabled and removed items.')
 @click.option('-f', '--field', 'extra_fields', multiple=True, help='Fields to show (repeatable). Use "default" for defaults, "*" for all.')
 @click.option('-s', '--sort', 'sorts', multiple=True, help='Sort results (field[:asc|desc]). Repeat for multiple sorts.')
 @click.option('-p', '--page', type=int, default=1, show_default=True, help='Result page (1-indexed).')
@@ -275,7 +291,7 @@ def _build_stats_payload(query: str,
 @click.option('--output-format', 'output_format', type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']), help='Force output format.')
 @click.option('--stats-only', is_flag=True, help='Emit only summary statistics in the requested output format.')
 @click.pass_context
-def search_ia(ctx, query, media_types, collections, languages, year, creators, subjects, sources, has_ocr, extra_fields, sorts, page, limit, formats, output, output_format, stats_only):
+def search_ia(ctx, query, media_types, collections, languages, year, creators, subjects, sources, has_ocr, text_search, include_unavailable, extra_fields, sorts, page, limit, formats, output, output_format, stats_only):
     """Search Internet Archive metadata and display matching items.
 
     QUERY (-q):
@@ -351,13 +367,16 @@ def search_ia(ctx, query, media_types, collections, languages, year, creators, s
     final_query = _build_query(
         query, media_types, collections, languages, formats,
         creators=creators, subjects=subjects, sources=sources,
-        year=year, has_ocr=has_ocr
+        year=year, has_ocr=has_ocr, text_search=text_search,
+        available_only=not include_unavailable
     )
     parsed_sorts = _parse_sorts(sorts)
     output_path = Path(output) if output else None
     format_name = determine_format(output_format, output_path)
 
     try:
+        # Note: IA library's full_text_search=True (beta FTS API) is unreliable,
+        # so we use text:() query wrapper instead for FTS
         search_response = ia_client.search_items(
             final_query,
             fields=combined_fields,
