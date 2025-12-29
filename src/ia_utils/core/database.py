@@ -198,14 +198,14 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
     pages_count = db.execute('SELECT COUNT(DISTINCT page_id) FROM text_blocks').fetchone()[0]
     avg_conf_result = db.execute('SELECT AVG(avg_confidence) FROM text_blocks').fetchone()[0]
     avg_conf = avg_conf_result if avg_conf_result else 0
-    avg_words = db.execute('SELECT AVG(word_count) FROM text_blocks').fetchone()[0]
+    avg_length = db.execute('SELECT AVG(length) FROM text_blocks').fetchone()[0]
 
     size_mb = output_path.stat().st_size / 1024 / 1024
 
     logger.info(f"\n   Database: {output_path.name}")
     logger.info(f"   Size: {size_mb:.1f} MB")
     logger.info(f"   Records: {blocks_count} text blocks across {pages_count} pages")
-    logger.info(f"   Average words per block: {avg_words:.1f}" if avg_words else "   Average words per block: N/A")
+    logger.info(f"   Average block length: {avg_length:.1f} chars" if avg_length else "   Average block length: N/A")
     logger.info(f"   OCR Quality: {avg_conf:.0f}% average confidence")
 
     # Block type breakdown

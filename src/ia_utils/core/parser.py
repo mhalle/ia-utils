@@ -181,7 +181,7 @@ def parse_hocr(hocr_bytes: bytes, logger: Optional[Logger] = None) -> List[Dict[
             line_count = len(lines)
 
             words = block.find_all(class_='ocrx_word')
-            word_count = len(words)
+            length = len(text)
 
             # Average confidence from word-level x_wconf
             confidences = [
@@ -212,7 +212,7 @@ def parse_hocr(hocr_bytes: bytes, logger: Optional[Logger] = None) -> List[Dict[
                 'bbox_y1': bbox[3],
                 'text': text,
                 'line_count': line_count,
-                'word_count': word_count,
+                'length': length,
                 'avg_confidence': avg_confidence,
                 'avg_font_size': avg_font_size,
                 'parent_carea_id': parent_carea_id,

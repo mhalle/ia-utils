@@ -19,7 +19,7 @@ class TextBlock:
     bbox_y1: Optional[int]
     text: str
     line_count: int
-    word_count: int
+    length: int
     avg_confidence: Optional[int]
     avg_font_size: Optional[int]
     parent_carea_id: Optional[str]
