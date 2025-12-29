@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 import click
 import sqlite_utils
 
+from ia_utils.core.database import get_document_metadata
 from ia_utils.utils.output import determine_format, write_output
 
 
@@ -213,11 +214,11 @@ def search_catalog(catalog, query, limit, blocks, raw, fields, output, output_fo
         db = sqlite_utils.Database(catalog)
 
         # Get IA ID for URLs
-        metadata = list(db['document_metadata'].rows_where(limit=1))
-        if not metadata:
+        doc_metadata = get_document_metadata(db)
+        if not doc_metadata:
             click.echo("Error: No metadata found in catalog", err=True)
             sys.exit(1)
-        ia_id = metadata[0]['identifier']
+        ia_id = doc_metadata['identifier']
 
         # Escape query unless --raw specified
         fts_query = query if raw else escape_fts_query(query)

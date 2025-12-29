@@ -4,6 +4,7 @@ import sys
 import click
 import sqlite_utils
 
+from ia_utils.core.database import get_document_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils import pages as page_utils
 
@@ -115,11 +116,11 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
         logger.verbose_info(f"Loading catalog: {catalog}")
         try:
             db = sqlite_utils.Database(catalog)
-            metadata = list(db['document_metadata'].rows_where(limit=1))
-            if not metadata:
+            doc_metadata = get_document_metadata(db)
+            if not doc_metadata:
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
-            ia_id_from_catalog = metadata[0]['identifier']
+            ia_id_from_catalog = doc_metadata['identifier']
             # Verify IA ID matches if identifier was also provided
             if ia_id and ia_id != ia_id_from_catalog:
                 logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")

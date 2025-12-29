@@ -1,11 +1,28 @@
 """SQLite database operations for catalogs."""
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Literal
 from datetime import datetime
 import sqlite_utils
 
 from ia_utils.utils.logger import Logger
+
+# Type for catalog mode
+CatalogMode = Literal['searchtext', 'mixed', 'hocr']
+
+
+def get_document_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
+    """Read document_metadata key-value table as a dict."""
+    if 'document_metadata' not in db.table_names():
+        return {}
+    return {row['key']: row['value'] for row in db['document_metadata'].rows}
+
+
+def get_catalog_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
+    """Read catalog_metadata key-value table as a dict."""
+    if 'catalog_metadata' not in db.table_names():
+        return {}
+    return {row['key']: row['value'] for row in db['catalog_metadata'].rows}
 
 
 def build_fts_indexes(db: sqlite_utils.Database) -> None:
@@ -78,8 +95,9 @@ def build_fts_indexes(db: sqlite_utils.Database) -> None:
 
 
 def create_catalog_database(output_path: Path, ia_id: str, slug: str,
-                           metadata: Dict[str, Any], files: List[Dict],
+                           metadata: List[tuple], files: List[Dict],
                            blocks: List[Dict], page_numbers: Optional[Dict] = None,
+                           catalog_mode: CatalogMode = 'hocr',
                            logger: Optional[Logger] = None) -> Path:
     """Create a new catalog database with all tables and indexes.
 
@@ -87,10 +105,11 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
         output_path: Path to write SQLite database
         ia_id: Internet Archive identifier
         slug: Human-readable slug for catalog
-        metadata: Document metadata
+        metadata: Document metadata as list of (key, value) tuples
         files: List of archive files
-        blocks: List of text blocks from hOCR
+        blocks: List of text blocks from hOCR or searchtext
         page_numbers: Optional page number mappings
+        catalog_mode: 'searchtext', 'mixed', or 'hocr'
         logger: Optional logger instance
 
     Returns:
@@ -104,32 +123,39 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
 
     db = sqlite_utils.Database(output_path)
 
-    # === TABLE 1: DOCUMENT METADATA ===
-    logger.progress("     Creating document_metadata...", nl=False)
+    # === TABLE 1: CATALOG METADATA (our computed fields) ===
+    logger.progress("     Creating catalog_metadata...", nl=False)
 
-    # Convert metadata list of tuples to dict, joining multi-value fields
-    metadata_record: Dict[str, Any] = {}
-    for key, value in metadata:
-        if key in metadata_record:
-            # Multi-value field: join with separator
-            metadata_record[key] = f"{metadata_record[key]}; {value}"
-        else:
-            metadata_record[key] = value
-
-    # Add our computed fields
-    metadata_record['slug'] = slug
-    metadata_record['created_at'] = datetime.now().isoformat()
-
-    db['document_metadata'].insert(metadata_record, pk='id', replace=True)
+    catalog_records = [
+        {'key': 'slug', 'value': slug},
+        {'key': 'created_at', 'value': datetime.now().isoformat()},
+        {'key': 'catalog_mode', 'value': catalog_mode},
+    ]
+    db['catalog_metadata'].insert_all(catalog_records, pk='key', replace=True)
     logger.progress_done("✓")
 
-    # === TABLE 2: ARCHIVE FILES ===
+    # === TABLE 2: DOCUMENT METADATA (from IA) ===
+    logger.progress("     Creating document_metadata...", nl=False)
+
+    # Convert metadata list of tuples to key-value records, joining multi-value fields
+    metadata_dict: Dict[str, str] = {}
+    for key, value in metadata:
+        if key in metadata_dict:
+            # Multi-value field: join with separator
+            metadata_dict[key] = f"{metadata_dict[key]}; {value}"
+        else:
+            metadata_dict[key] = str(value)
+
+    metadata_records = [{'key': k, 'value': v} for k, v in metadata_dict.items()]
+    db['document_metadata'].insert_all(metadata_records, pk='key', replace=True)
+    logger.progress_done("✓")
+
+    # === TABLE 3: ARCHIVE FILES ===
     logger.progress("     Creating archive_files...", nl=False)
 
     files_records = []
     for file_info in files:
         files_records.append({
-            'document_id': 1,
             'filename': file_info['filename'],
             'format': file_info['format'],
             'size_bytes': file_info['size'],
@@ -138,23 +164,22 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
             'sha1_checksum': file_info['sha1'],
             'crc32_checksum': file_info['crc32'],
             'download_url': f'https://archive.org/download/{ia_id}/{file_info["filename"]}',
-            'created_at': datetime.now().isoformat(),
         })
 
-    db['archive_files'].insert_all(files_records, foreign_keys=[('document_id', 'document_metadata', 'id')])
+    db['archive_files'].insert_all(files_records, pk='filename')
     logger.progress_done(f"✓ ({len(files)} files)")
 
-    # === TABLE 3: TEXT BLOCKS ===
+    # === TABLE 4: TEXT BLOCKS ===
     logger.progress("     Creating text_blocks...", nl=False)
 
-    db['text_blocks'].insert_all(
-        blocks,
-        pk='hocr_id',
-        replace=True,
-    )
+    # For searchtext mode, blocks don't have hocr_id, use composite key
+    if catalog_mode == 'searchtext':
+        db['text_blocks'].insert_all(blocks, pk=['page_id', 'block_number'], replace=True)
+    else:
+        db['text_blocks'].insert_all(blocks, pk='hocr_id', replace=True)
     logger.progress_done(f"✓ ({len(blocks)} blocks)")
 
-    # === TABLE 4: PAGE NUMBERS (MAPPING) ===
+    # === TABLE 5: PAGE NUMBERS (MAPPING) ===
     if page_numbers and 'pages' in page_numbers:
         logger.progress("     Creating page_numbers...", nl=False)
 
@@ -175,20 +200,23 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
         )
         logger.progress_done(f"✓ ({len(page_records)} page mappings)")
 
-    # === TABLE 5: INDEXES ===
+    # === INDEXES ===
     logger.progress("     Creating indexes...", nl=False)
 
-    db.executescript("""
-        CREATE INDEX IF NOT EXISTS idx_page ON text_blocks(page_id);
-        CREATE INDEX IF NOT EXISTS idx_block_type ON text_blocks(block_type);
-        CREATE INDEX IF NOT EXISTS idx_language ON text_blocks(language);
-        CREATE INDEX IF NOT EXISTS idx_confidence ON text_blocks(avg_confidence);
-        CREATE INDEX IF NOT EXISTS idx_font_size ON text_blocks(avg_font_size);
-        CREATE INDEX IF NOT EXISTS idx_book_page ON page_numbers(book_page_number);
-    """)
+    db.executescript("CREATE INDEX IF NOT EXISTS idx_page ON text_blocks(page_id);")
+    if catalog_mode != 'searchtext':
+        # These columns only exist in hocr/mixed mode
+        db.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_block_type ON text_blocks(block_type);
+            CREATE INDEX IF NOT EXISTS idx_language ON text_blocks(language);
+            CREATE INDEX IF NOT EXISTS idx_confidence ON text_blocks(avg_confidence);
+            CREATE INDEX IF NOT EXISTS idx_font_size ON text_blocks(avg_font_size);
+        """)
+    if page_numbers:
+        db.executescript("CREATE INDEX IF NOT EXISTS idx_book_page ON page_numbers(book_page_number);")
     logger.progress_done("✓")
 
-    # === TABLES 6-7: FTS INDEXES ===
+    # === FTS INDEXES ===
     logger.progress("     Creating FTS indexes...", nl=False)
     build_fts_indexes(db)
     logger.progress_done("✓")
@@ -196,43 +224,48 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
     # === STATISTICS ===
     blocks_count = db['text_blocks'].count
     pages_count = db.execute('SELECT COUNT(DISTINCT page_id) FROM text_blocks').fetchone()[0]
-    avg_conf_result = db.execute('SELECT AVG(avg_confidence) FROM text_blocks').fetchone()[0]
-    avg_conf = avg_conf_result if avg_conf_result else 0
     avg_length = db.execute('SELECT AVG(length) FROM text_blocks').fetchone()[0]
 
     size_mb = output_path.stat().st_size / 1024 / 1024
 
     logger.info(f"\n   Database: {output_path.name}")
+    logger.info(f"   Mode: {catalog_mode}")
     logger.info(f"   Size: {size_mb:.1f} MB")
     logger.info(f"   Records: {blocks_count} text blocks across {pages_count} pages")
     logger.info(f"   Average block length: {avg_length:.1f} chars" if avg_length else "   Average block length: N/A")
-    logger.info(f"   OCR Quality: {avg_conf:.0f}% average confidence")
 
-    # Block type breakdown
-    logger.info("\n   Block types:")
-    type_stats = list(db.execute("""
-        SELECT block_type, COUNT(*) as count
-        FROM text_blocks
-        GROUP BY block_type
-        ORDER BY count DESC
-    """))
+    # Only show hocr-specific stats if available
+    if catalog_mode != 'searchtext':
+        avg_conf_result = db.execute('SELECT AVG(avg_confidence) FROM text_blocks').fetchone()[0]
+        avg_conf = avg_conf_result if avg_conf_result else 0
+        logger.info(f"   OCR Quality: {avg_conf:.0f}% average confidence")
 
-    for row in type_stats:
-        logger.info(f"     {row[0]}: {row[1]}")
+        # Block type breakdown
+        type_stats = list(db.execute("""
+            SELECT block_type, COUNT(*) as count
+            FROM text_blocks
+            GROUP BY block_type
+            ORDER BY count DESC
+        """))
 
-    # Language breakdown
-    lang_stats = list(db.execute("""
-        SELECT language, COUNT(*) as count
-        FROM text_blocks
-        WHERE language IS NOT NULL
-        GROUP BY language
-        ORDER BY count DESC
-    """))
+        if type_stats:
+            logger.info("\n   Block types:")
+            for row in type_stats:
+                logger.info(f"     {row[0]}: {row[1]}")
 
-    if lang_stats:
-        logger.info("\n   Languages:")
-        for row in lang_stats:
-            logger.info(f"     {row[0]}: {row[1]}")
+        # Language breakdown
+        lang_stats = list(db.execute("""
+            SELECT language, COUNT(*) as count
+            FROM text_blocks
+            WHERE language IS NOT NULL
+            GROUP BY language
+            ORDER BY count DESC
+        """))
+
+        if lang_stats:
+            logger.info("\n   Languages:")
+            for row in lang_stats:
+                logger.info(f"     {row[0]}: {row[1]}")
 
     return output_path
 

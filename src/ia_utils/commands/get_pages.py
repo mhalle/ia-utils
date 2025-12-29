@@ -9,6 +9,7 @@ import sqlite_utils
 from joblib import Parallel, delayed
 
 from ia_utils.core import image, ia_client
+from ia_utils.core.database import get_document_metadata, get_catalog_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils import pages as page_utils
 
@@ -165,12 +166,13 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
             logger.info(f"Loading catalog: {catalog}")
         try:
             db = sqlite_utils.Database(catalog)
-            metadata = list(db['document_metadata'].rows_where(limit=1))
-            if not metadata:
+            doc_metadata = get_document_metadata(db)
+            cat_metadata = get_catalog_metadata(db)
+            if not doc_metadata:
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
-            ia_id_from_catalog = metadata[0]['identifier']
-            slug = metadata[0].get('slug', '')
+            ia_id_from_catalog = doc_metadata['identifier']
+            slug = cat_metadata.get('slug', '')
             # Verify IA ID matches if identifier was also provided
             if ia_id and ia_id != ia_id_from_catalog:
                 logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")

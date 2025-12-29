@@ -6,6 +6,7 @@ import click
 import sqlite_utils
 
 from ia_utils.core import ia_client, parser, database
+from ia_utils.core.database import get_document_metadata, get_catalog_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils.slug import generate_slug
 
@@ -54,8 +55,11 @@ def rebuild_catalog(ctx, catalog, full):
 
     # Get document metadata
     try:
-        doc_meta = list(db['document_metadata'].rows_where(limit=1))[0]
-        ia_id = doc_meta['identifier']
+        doc_metadata = get_document_metadata(db)
+        if not doc_metadata:
+            logger.error("No metadata found in catalog database")
+            sys.exit(1)
+        ia_id = doc_metadata['identifier']
     except Exception as e:
         logger.error(f"Failed to read document_metadata: {e}")
         sys.exit(1)

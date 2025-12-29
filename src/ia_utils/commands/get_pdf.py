@@ -6,6 +6,7 @@ import click
 import sqlite_utils
 
 from ia_utils.core import ia_client
+from ia_utils.core.database import get_document_metadata, get_catalog_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils.pages import extract_ia_id
 
@@ -54,12 +55,13 @@ def get_pdf(ctx, identifier, catalog, output_dir, output):
 
         try:
             db = sqlite_utils.Database(catalog)
-            metadata = list(db['document_metadata'].rows_where(limit=1))
-            if not metadata:
+            doc_metadata = get_document_metadata(db)
+            cat_metadata = get_catalog_metadata(db)
+            if not doc_metadata:
                 logger.error("No metadata found in catalog database")
                 sys.exit(1)
-            ia_id = metadata[0]['identifier']
-            slug = metadata[0].get('slug', '')
+            ia_id = doc_metadata['identifier']
+            slug = cat_metadata.get('slug', '')
         except Exception as e:
             logger.error(f"Failed to read catalog database: {e}")
             sys.exit(1)

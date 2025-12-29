@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 import click
 import sqlite_utils
 
+from ia_utils.core.database import get_document_metadata
 from ia_utils.utils.output import determine_format, write_output
 from ia_utils.utils.pages import parse_page_range
 
@@ -153,11 +154,11 @@ def get_text(catalog, leaf_range, blocks, fields, output, output_format):
         db = sqlite_utils.Database(catalog)
 
         # Get IA ID for URLs
-        metadata = list(db['document_metadata'].rows_where(limit=1))
-        if not metadata:
+        doc_metadata = get_document_metadata(db)
+        if not doc_metadata:
             click.echo("Error: No metadata found in catalog", err=True)
             sys.exit(1)
-        ia_id = metadata[0]['identifier']
+        ia_id = doc_metadata['identifier']
 
         # Parse leaf range
         try:

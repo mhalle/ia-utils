@@ -8,6 +8,7 @@ import click
 import sqlite_utils
 
 from ia_utils.core import ia_client
+from ia_utils.core.database import get_document_metadata, get_catalog_metadata
 from ia_utils.utils.output import determine_format, write_output
 from ia_utils.utils.pages import extract_ia_id
 
@@ -65,13 +66,17 @@ def get_catalog_info(catalog_path: Path) -> Dict[str, Any]:
     try:
         db = sqlite_utils.Database(catalog_path)
 
-        # Get document metadata
-        metadata = list(db['document_metadata'].rows_where(limit=1))
-        if not metadata:
+        # Get document metadata (key-value table)
+        doc_metadata = get_document_metadata(db)
+        if not doc_metadata:
             return {'filename': catalog_path.name, 'error': 'No metadata found'}
 
-        # Start with all fields from database
-        result = dict(metadata[0])
+        # Start with document metadata
+        result = dict(doc_metadata)
+
+        # Add catalog metadata
+        cat_metadata = get_catalog_metadata(db)
+        result.update(cat_metadata)
 
         # Add computed fields
         result['filename'] = catalog_path.name
