@@ -6,5 +6,8 @@ Utilities for building searchable SQLite catalog databases from any IA document
 and downloading/converting page images.
 """
 
-from importlib.metadata import version
-__version__ = version("ia-utils")
+try:
+    from ._version import __version__
+except ImportError:
+    from importlib.metadata import version
+    __version__ = version("ia-utils")

@@ -19,6 +19,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Generate version file
+        run: |
+          # Generate _version.py for installs without .git directory
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "__version__ = \"${VERSION#v}\"" > src/ia_utils/_version.py
+
       - name: Create skill zip
         run: |
           # Create zip with ia-utils/ as root directory

@@ -42,5 +42,8 @@ python_files = ["test_*.py"]
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.build.hooks.vcs]
+version-file = "src/ia_utils/_version.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ia_utils"]

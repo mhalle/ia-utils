@@ -50,6 +50,7 @@ htmlcov/
 
 # Project specific
 *.sqlite
+src/ia_utils/_version.py
 *.sqlite-journal
 *.pdf
 *.jpg
