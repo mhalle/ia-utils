@@ -113,8 +113,13 @@ ia-utils search-ia --collection google-books -m texts --has-ocr -q "topic"
 ```
 
 - **Strengths**: Large scale, many rare books
-- **Weaknesses**: Sometimes cropped images, variable OCR quality
+- **Weaknesses**:
+  - Older scans (typically from early-mid 2000s digitization efforts)
+  - Generally lower resolution than more recent scans
+  - Sometimes cropped images, variable OCR quality
+  - Image quality can be noticeably worse than Wellcome Library or recent IA scans
 - **Note**: Some items may have access restrictions
+- **Tip**: When the same work is available from multiple sources, prefer Wellcome Library or recent IA scans over Google Books for better image quality
 
 ### University Collections
 

@@ -226,7 +226,12 @@ WHERE book_page_number GLOB '*[IVXLCDM]*'
 ### 6. Not Checking Rights
 - Some items have copyright restrictions
 - **Always include rights info** when presenting search results
-- Check `rights` field in metadata
+- Check multiple fields in metadata:
+  - `rights` - primary rights/copyright statement
+  - `possible-copyright-status` - additional copyright assessment
+  - `licenseurl` - link to specific license (e.g., Creative Commons)
+  - `access-restricted-item` - whether access is restricted
+- Quick check: `ia-utils info <id> -f rights -f possible-copyright-status -f licenseurl`
 - Common values:
   - "Public Domain" - safe to use
   - "Copyright Not Cleared" - may have restrictions
