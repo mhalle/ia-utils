@@ -63,19 +63,22 @@ ia-utils search-catalog -c catalog.sqlite -q "femur"
 ia-utils get-page -c catalog.sqlite -l 42 -o page.jpg
 ```
 
-## Command Overview
+## Commands
 
-| Command | Purpose |
-|---------|---------|
-| `search-ia` | Search IA metadata (title, creator, year, collection) |
-| `info` | Show metadata for catalog or IA item |
-| `list-files` | List files in IA item with download URLs |
-| `create-catalog` | Build SQLite database from IA document OCR |
-| `search-catalog` | Full-text search catalog OCR content |
-| `get-page` | Download single page image |
-| `get-pages` | Download multiple pages (range or all) |
-| `get-pdf` | Download PDF from IA |
-| `get-url` | Get URL without downloading |
+**Discovery:**
+- `search-ia` - Search IA metadata (title, creator, year, collection)
+- `info` - Show metadata for catalog or IA item
+- `list-files` - List files in IA item with download URLs
+
+**Catalog:**
+- `create-catalog` - Build SQLite database from IA document OCR
+- `search-catalog` - Full-text search catalog OCR content
+
+**Download:**
+- `get-page` - Download single page image
+- `get-pages` - Download multiple pages (range or all)
+- `get-pdf` - Download PDF from IA
+- `get-url` - Get URL without downloading
 
 ## Documentation
 
