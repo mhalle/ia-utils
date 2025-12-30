@@ -6,11 +6,16 @@ compatibility: Requires uv and Python 3.9+. Requires network access to archive.o
 metadata:
   author: mhalle
   repository: https://github.com/mhalle/ia-utils
+  download: https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.zip
 ---
 
 # ia-utils: Internet Archive Document Tools
 
 CLI tools for discovering, cataloging, and downloading books and documents from the Internet Archive.
+
+## Download
+
+Latest release: https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.zip
 
 ## Installation
 
