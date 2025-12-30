@@ -1,6 +1,6 @@
 ---
 name: ia-utils
-description: Work with Internet Archive books and documents. Use when searching IA metadata, creating searchable catalogs from OCR text, downloading pages or PDFs, or querying local catalogs. Triggers on "Internet Archive", "archive.org", "IA document", "OCR catalog", or historical book/document research.
+description: Work with Internet Archive books and documents. Use when searching IA metadata, creating searchable catalogs from OCR text, downloading pages, PDFs, or getting URLs, or querying local catalogs. Triggers on "Internet Archive", "archive.org", "IA document", "OCR catalog", or historical book/document research.
 license: MIT
 compatibility: Requires uv and Python 3.9+. Requires network access to archive.org.
 metadata:

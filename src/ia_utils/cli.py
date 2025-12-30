@@ -34,6 +34,7 @@ def cli(ctx, verbose):
     4. DOWNLOAD: Get pages, PDFs, or URLs
        ia-utils get-page -c catalog.sqlite -l 42
        ia-utils get-pdf -c catalog.sqlite
+       ia-utils get-url -c catalog.sqlite -l 42 --viewer
 
     COMMAND GROUPS:
 
