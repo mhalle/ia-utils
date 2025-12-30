@@ -22,7 +22,7 @@ Latest release: https://github.com/mhalle/ia-utils/releases/latest/download/ia-u
 Run the install script:
 
 ```bash
-$SKILL_DIR/scripts/install.sh
+sh $SKILL_DIR/scripts/install.sh
 ```
 
 Or install manually with uv (recommended) or pip:
@@ -42,7 +42,7 @@ ia-utils <command> [options]
 To reinstall/upgrade:
 
 ```bash
-$SKILL_DIR/scripts/install.sh --force
+sh $SKILL_DIR/scripts/install.sh --force
 ```
 
 Note: `$SKILL_DIR` refers to the skill directory path (e.g., `/mnt/skills/ia-utils` depending on platform).
