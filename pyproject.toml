@@ -27,6 +27,11 @@ dev = [
     "pytest-cov>=4.0.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/mhalle/ia-utils"
+Homepage = "https://github.com/mhalle/ia-utils"
+Download = "https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.zip"
+
 [project.scripts]
 ia-utils = "ia_utils.cli:cli"
 
@@ -41,6 +46,7 @@ python_files = ["test_*.py"]
 
 [tool.hatch.version]
 source = "vcs"
+fallback-version = "0.0.0"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/ia_utils/_version.py"

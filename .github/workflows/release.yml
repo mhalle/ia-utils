@@ -21,7 +21,7 @@ jobs:
 
       - name: Generate version file
         run: |
-          # Generate _version.py for installs without .git directory
+          # Generate _version.py for runtime version access
           VERSION="${{ steps.version.outputs.VERSION }}"
           VERSION="${VERSION#v}"  # Strip 'v' prefix (v0.11.1 -> 0.11.1)
           printf '%s\n' \
@@ -29,6 +29,14 @@ jobs:
             "__version__ = \"${VERSION}\"" \
             > src/ia_utils/_version.py
           cat src/ia_utils/_version.py
+
+      - name: Patch pyproject.toml fallback version
+        run: |
+          # Update fallback-version to match the release tag
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          VERSION="${VERSION#v}"
+          sed -i "s/^fallback-version = .*/fallback-version = \"${VERSION}\"/" pyproject.toml
+          grep fallback-version pyproject.toml
 
       - name: Create skill zip
         run: |
