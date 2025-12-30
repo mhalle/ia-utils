@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create skill zip
+        run: |
+          # Create zip with ia-utils/ as root directory
+          # Works as both a skill (directory name matches skill name)
+          # and Python package (contains pyproject.toml, src/)
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mkdir -p /tmp/ia-utils
+          rsync -a --exclude='.git' \
+                   --exclude='.github' \
+                   --exclude='.venv' \
+                   --exclude='.pytest_cache' \
+                   --exclude='__pycache__' \
+                   --exclude='*.pyc' \
+                   --exclude='.DS_Store' \
+                   --exclude='*.sqlite' \
+                   . /tmp/ia-utils/
+          cd /tmp
+          zip -r $GITHUB_WORKSPACE/ia-utils-${VERSION}.zip ia-utils
+          cp $GITHUB_WORKSPACE/ia-utils-${VERSION}.zip $GITHUB_WORKSPACE/ia-utils-${VERSION}.skill
+          cp $GITHUB_WORKSPACE/ia-utils-${VERSION}.zip $GITHUB_WORKSPACE/ia-utils.zip
+          cp $GITHUB_WORKSPACE/ia-utils-${VERSION}.zip $GITHUB_WORKSPACE/ia-utils.skill
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            ia-utils-${{ steps.version.outputs.VERSION }}.zip
+            ia-utils-${{ steps.version.outputs.VERSION }}.skill
+            ia-utils.zip
+            ia-utils.skill

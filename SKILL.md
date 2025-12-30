@@ -14,10 +14,18 @@ CLI tools for discovering, cataloging, and downloading books and documents from 
 
 ## Installation
 
-This skill directory is also the Python package. Install as a uv tool:
+Run the install script:
+
+```bash
+$SKILL_DIR/scripts/install.sh
+```
+
+Or install manually with uv (recommended) or pip:
 
 ```bash
 uv tool install $SKILL_DIR
+# or
+pip install $SKILL_DIR
 ```
 
 Then run from any directory:
@@ -26,13 +34,13 @@ Then run from any directory:
 ia-utils <command> [options]
 ```
 
-To reinstall after updates:
+To reinstall/upgrade:
 
 ```bash
-uv tool install --force $SKILL_DIR
+$SKILL_DIR/scripts/install.sh --force
 ```
 
-Note: `$SKILL_DIR` refers to the path where this skill is installed (e.g., `/mnt/skills/ia-utils` or similar depending on platform).
+Note: `$SKILL_DIR` refers to the skill directory path (e.g., `/mnt/skills/ia-utils` depending on platform).
 
 ## Quick Start
 
