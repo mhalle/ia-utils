@@ -41,6 +41,17 @@ ia-utils get-page -c catalog.sqlite -l <leaf> -o page.jpg
 --text "term"           # Search inside book text (repeatable)
 ```
 
+## List Files (`list-files`)
+```bash
+ia-utils list-files <identifier>           # List original files
+ia-utils list-files <identifier> --all     # Include derivatives (PDF, OCR, etc.)
+ia-utils list-files <identifier> --format-filter PDF
+ia-utils list-files <identifier> --format-filter MP3
+ia-utils list-files -c catalog.sqlite      # From catalog
+-f name -f url                              # Select fields
+-o files.csv                                # Export
+```
+
 ## Search Catalog (`search-catalog`)
 ```bash
 -c catalog.sqlite       # Catalog file (required)
@@ -186,3 +197,26 @@ ia-utils search-catalog -c catalog.sqlite -q '"Fig. 123"'
 ia-utils search-catalog -c catalog.sqlite -q "common word" -l 3
 # If snippets are garbled, OCR is poor
 ```
+
+## Non-Book Items
+
+Commands `info`, `list-files`, and `search-ia` work with any IA media type:
+
+```bash
+# Photos
+ia-utils search-ia -q "daguerreotype" -m image
+ia-utils list-files photo_id --format-filter JPEG
+
+# Audio
+ia-utils search-ia -q "bird songs" -m audio
+ia-utils list-files audio_id --format-filter MP3
+
+# Video
+ia-utils search-ia -q "silent film" -m movies
+ia-utils list-files film_id --format-filter MP4
+
+# Any item metadata
+ia-utils info <any_identifier> -f '*'
+```
+
+Media types: `texts`, `audio`, `movies`, `image`, `software`, `collection`

@@ -148,10 +148,10 @@ def get_files(ia_id: str) -> list:
         ia_id: Internet Archive identifier
 
     Returns:
-        List of file objects
+        List of file dictionaries
     """
     item = get_item(ia_id)
-    return item.files_list()
+    return item.files
 
 
 def search_items(query: str,

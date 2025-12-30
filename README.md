@@ -107,6 +107,31 @@ ia-utils info anatomicalatlasi00smit
 ia-utils info catalog.sqlite -f title -f page_count --output-format json
 ```
 
+#### `list-files` - List Files in an Item
+
+List all files in an IA item with download URLs:
+
+```bash
+# List original/source files
+ia-utils list-files anatomicalatlasi00smit
+
+# Include derivative files (PDF, thumbnails, OCR, etc.)
+ia-utils list-files anatomicalatlasi00smit --all
+
+# Filter by format
+ia-utils list-files anatomicalatlasi00smit --all --format-filter PDF
+ia-utils list-files anatomicalatlasi00smit --all --format-filter MP3
+
+# Export to CSV or JSON
+ia-utils list-files anatomicalatlasi00smit -o files.csv
+ia-utils list-files anatomicalatlasi00smit --output-format json
+
+# Show all available fields
+ia-utils list-files anatomicalatlasi00smit -f '*'
+```
+
+**Fields:** name, source, format, size, md5, mtime, crc32, sha1, url
+
 ### Catalog Management
 
 #### `create-catalog` - Build Searchable Database
@@ -284,6 +309,52 @@ ia-utils get-page https://archive.org/details/anatomicalatlasi00smit/page/leaf42
 # From catalog
 ia-utils get-pdf -c catalog.sqlite
 ```
+
+## Non-Book Items
+
+While ia-utils is optimized for books and documents with OCR, several commands work with any IA item type including photographs, audio, video, and software.
+
+### Photographs and Images
+
+```bash
+# Search for photographs
+ia-utils search-ia -q "daguerreotype portrait" -m image
+
+# List available image files
+ia-utils list-files bpldc:images --format-filter JPEG
+
+# Get item metadata
+ia-utils info bpldc:images -f '*'
+```
+
+### Audio Files
+
+```bash
+# Search for audio recordings
+ia-utils search-ia -q "bird songs" -m audio
+
+# List audio files with download URLs
+ia-utils list-files bird_songs_collection --all --format-filter MP3
+ia-utils list-files bird_songs_collection --all --format-filter FLAC
+
+# Get direct download URLs
+ia-utils list-files 78_some-record --output-format json
+```
+
+### Video
+
+```bash
+# Search for films
+ia-utils search-ia -q "silent film" -m movies
+
+# List video formats available
+ia-utils list-files silent_film_id --all --format-filter MP4
+ia-utils list-files silent_film_id --all --format-filter "MPEG4"
+```
+
+### Any Media Type
+
+The `info` and `list-files` commands work with any IA identifier regardless of media type. Use `search-ia -m <type>` to filter by media type: `texts`, `audio`, `movies`, `image`, `software`, `collection`.
 
 ## Output Formats
 

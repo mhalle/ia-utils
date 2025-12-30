@@ -10,6 +10,7 @@ from ia_utils.commands.get_pages import get_pages
 from ia_utils.commands.get_pdf import get_pdf
 from ia_utils.commands.get_text import get_text
 from ia_utils.commands.get_url import get_url
+from ia_utils.commands.list_files import list_files
 from ia_utils.commands.search_catalog import search_catalog
 from ia_utils.commands.search_ia import search_ia
 from ia_utils.commands.rebuild_catalog import rebuild_catalog
@@ -42,6 +43,7 @@ def cli(ctx, verbose):
     Discovery:
       search-ia        Search IA metadata (by title, creator, year, etc.)
       info             Show metadata about catalog or IA item
+      list-files       List files in an IA item with download URLs
     Catalog Management:
       create-catalog   Build catalog database from IA document
       rebuild-catalog  Rebuild catalog's text/FTS indexes
@@ -75,6 +77,7 @@ cli.add_command(get_pdf)
 cli.add_command(get_text)
 cli.add_command(get_url)
 cli.add_command(info)
+cli.add_command(list_files)
 cli.add_command(rebuild_catalog)
 cli.add_command(search_catalog)
 cli.add_command(search_ia)
