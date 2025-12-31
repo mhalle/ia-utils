@@ -12,10 +12,56 @@ CatalogMode = Literal['searchtext', 'mixed', 'hocr', 'djvu']
 
 
 def get_document_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
-    """Read document_metadata key-value table as a dict."""
+    """Read document_metadata table as a dict.
+
+    Handles both new key-value schema and legacy fixed-column schema.
+    """
     if 'document_metadata' not in db.table_names():
         return {}
-    return {row['key']: row['value'] for row in db['document_metadata'].rows}
+
+    # Check which schema we have by looking at columns
+    columns = {col.name for col in db['document_metadata'].columns}
+
+    if 'key' in columns and 'value' in columns:
+        # New key-value schema
+        return {row['key']: row['value'] for row in db['document_metadata'].rows}
+    elif 'ia_identifier' in columns:
+        # Legacy fixed-column schema - convert to dict format
+        rows = list(db['document_metadata'].rows)
+        if not rows:
+            return {}
+        row = rows[0]
+        result = {}
+        # Map old column names to new key names
+        column_mapping = {
+            'ia_identifier': 'identifier',
+            'title': 'title',
+            'creator_primary': 'creator',
+            'creator_secondary': 'creator_secondary',
+            'publisher': 'publisher',
+            'publication_date': 'date',
+            'page_count': 'imagecount',
+            'language': 'language',
+            'ark_identifier': 'ark',
+            'oclc_id': 'oclc-id',
+            'openlibrary_edition': 'openlibrary_edition',
+            'openlibrary_work': 'openlibrary_work',
+            'scan_quality_ppi': 'ppi',
+            'scan_camera': 'camera',
+            'scan_date': 'scandate',
+            'collection': 'collection',
+            'subject': 'subject',
+            'mediatype': 'mediatype',
+            'contributor': 'contributor',
+            'ocr': 'ocr',
+            'description': 'description',
+        }
+        for old_col, new_key in column_mapping.items():
+            if old_col in row and row[old_col] is not None:
+                result[new_key] = str(row[old_col])
+        return result
+    else:
+        return {}
 
 
 def get_catalog_metadata(db: sqlite_utils.Database) -> Dict[str, str]:

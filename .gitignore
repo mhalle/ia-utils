@@ -58,3 +58,4 @@ src/ia_utils/_version.py
 *.png
 *.jp2
 uv.lock
+.tmp/

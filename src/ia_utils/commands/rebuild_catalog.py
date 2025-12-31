@@ -53,15 +53,21 @@ def rebuild_catalog(ctx, catalog, full):
         logger.error(f"Failed to verify catalog structure: {e}")
         sys.exit(1)
 
-    # Get document metadata
+    # Get IA identifier - handle both new key-value and legacy fixed-column schemas
     try:
         doc_metadata = get_document_metadata(db)
-        if not doc_metadata:
-            logger.error("No metadata found in catalog database")
-            sys.exit(1)
-        ia_id = doc_metadata['identifier']
+        if doc_metadata and 'identifier' in doc_metadata:
+            ia_id = doc_metadata['identifier']
+        else:
+            # Try legacy schema directly
+            result = list(db.execute("SELECT ia_identifier FROM document_metadata LIMIT 1"))
+            if result and result[0][0]:
+                ia_id = result[0][0]
+            else:
+                logger.error("No IA identifier found in catalog database")
+                sys.exit(1)
     except Exception as e:
-        logger.error(f"Failed to read document_metadata: {e}")
+        logger.error(f"Failed to read identifier from catalog: {e}")
         sys.exit(1)
 
     # Full regeneration mode
