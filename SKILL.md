@@ -135,6 +135,11 @@ Safe values: "Public Domain", "No Known Copyright", CC licenses, pre-1928 US pub
 
 ## Tips
 
+- **Engage users with intermediate results**: Don't drill down making many tool calls trying to find a perfect or comprehensive answer. Instead:
+  - Present intermediate results early (breadth over depth)
+  - Include BookReader links to specific pages so users can evaluate sources themselves
+  - Ask for preferences and present options for continuing the search
+  - Let the user guide which direction to explore further
 - **Always provide clickable links**: When displaying content to users, include viewer URLs so they can explore the document themselves:
   ```bash
   ia-utils get-url <id> -l <leaf> --viewer  # BookReader link

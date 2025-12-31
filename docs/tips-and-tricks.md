@@ -2,6 +2,88 @@
 
 Advanced techniques and shortcuts for efficiently using ia-utils.
 
+## Engage Users Early - Breadth Over Depth
+
+**Don't drill down making many tool calls trying to find an elusive perfect or comprehensive answer.** Instead, engage users by presenting intermediate results and letting them guide the search.
+
+### Why This Matters
+
+- Users can evaluate sources themselves using BookReader links
+- Different users have different needs - let them choose
+- Autonomous deep searches waste time if the first result isn't what they wanted
+- Showing options teaches users what's available
+
+### The Pattern
+
+1. **Search broadly first** - Run one search, present top results with links
+2. **Let users evaluate** - Include BookReader links so they can browse sources
+3. **Ask for direction** - "Which of these looks most relevant?" or "Should I search for [alternative term]?"
+4. **Drill down on request** - Only go deeper when the user indicates which direction
+
+### Example: Finding Anatomical Information
+
+**❌ Wrong approach** (too many autonomous calls):
+```
+[Searches for "femur"]
+[Creates catalog]
+[Searches catalog]
+[Downloads 5 pages]
+[Reads each page]
+[Synthesizes answer]
+... 8 tool calls later, presents a comprehensive answer that might not be what the user wanted
+```
+
+**✅ Right approach** (engage early):
+```
+I found several anatomy atlases that might help. Here are the top candidates:
+
+1. [Hand Atlas of Human Anatomy (1933)](https://archive.org/details/b31362138) -
+   Spalteholz, 847 pages, high-quality plates. [Browse the atlas](https://archive.org/details/b31362138)
+
+2. [Gray's Anatomy (1918)](https://archive.org/details/anatomyofhumanbo1918gray) -
+   Classic reference, 1396 pages. [Browse the book](https://archive.org/details/anatomyofhumanbo1918gray)
+
+3. [Anatomical Atlas (1900)](https://archive.org/details/anatomicalatlasi00smit) -
+   Older edition, 500 pages. [Browse the atlas](https://archive.org/details/anatomicalatlasi00smit)
+
+Which would you like me to search? Or browse these links first to see which
+has the style of illustrations you prefer.
+```
+
+### When to Go Deeper
+
+- User explicitly asks for more detail
+- User selects a specific source to explore
+- User confirms the search direction is correct
+- Simple factual queries with obvious single answers
+
+### Always Include Links
+
+When presenting options, always include BookReader links so users can:
+- Evaluate the source's style and quality
+- Check if illustrations match their needs
+- Browse surrounding content
+- Decide if they want to continue with that source
+
+### Link to Specific Pages When Appropriate
+
+Don't just link to the document root - link to specific pages or spreads that are relevant:
+
+```markdown
+Found information about the femur in [Gray's Anatomy](https://archive.org/details/anatomyofhumanbo1918gray):
+
+- **Overview**: [page 242](https://archive.org/details/anatomyofhumanbo1918gray/page/leaf242) - general description
+- **Articulations**: [page 289](https://archive.org/details/anatomyofhumanbo1918gray/page/leaf289) - joints and connections
+- **Muscles**: [page 456](https://archive.org/details/anatomyofhumanbo1918gray/page/leaf456) - attached muscles
+
+Click any link to browse that section and see surrounding content.
+```
+
+This helps users:
+- Jump directly to relevant content
+- Explore related information on adjacent pages
+- Compare different sections of the same work
+
 ## Quick Decision Tree
 
 ```
