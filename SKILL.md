@@ -135,6 +135,12 @@ Safe values: "Public Domain", "No Known Copyright", CC licenses, pre-1928 US pub
 
 ## Tips
 
+- **Always provide clickable links**: When displaying content to users, include viewer URLs so they can explore the document themselves:
+  ```bash
+  ia-utils get-url <id> -l <leaf> --viewer  # BookReader link
+  ia-utils get-url <id> -l <leaf>           # Direct image link
+  ```
+  Format as clickable markdown links: `[View page 42](https://archive.org/details/id/page/leaf42)`
 - Use `--has-ocr` when searching to ensure text is available
 - Wellcome Library (`-c wellcomelibrary`) has high-quality medical scans
 - Google Books scans are older with lower resolution

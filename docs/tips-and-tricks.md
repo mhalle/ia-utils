@@ -24,6 +24,46 @@ User needs to compare editions?
   └─> Create catalogs for each, compare search results
 ```
 
+## Providing Links to Users
+
+**Always include clickable links** when displaying content from IA documents. This lets users verify information, explore context, and navigate the document themselves.
+
+### When to Provide Links
+
+- Search results: link to each page mentioned
+- Quotes or excerpts: link to source page
+- Figure/image references: link to viewer page
+- Any specific page discussion: include viewer URL
+
+### How to Format Links
+
+```bash
+# Get viewer URL (user can navigate, zoom, read)
+ia-utils get-url <id> -l <leaf> --viewer
+# Returns: https://archive.org/details/<id>/page/leaf<n>
+
+# Get direct image URL
+ia-utils get-url <id> -l <leaf>
+```
+
+Format as clickable markdown:
+```markdown
+Found on [page 42](https://archive.org/details/anatomicalatlasi00smit/page/leaf42):
+> "The femur articulates with..."
+
+See also: [page 43](https://archive.org/details/anatomicalatlasi00smit/page/leaf43)
+```
+
+### Template for Search Results
+
+```markdown
+Found 3 matches for "femur":
+
+1. **Page 42** ([view](https://archive.org/details/id/page/leaf42)): "The femur is the longest bone..."
+2. **Page 89** ([view](https://archive.org/details/id/page/leaf89)): "...articulation of the femur with..."
+3. **Page 156** ([view](https://archive.org/details/id/page/leaf156)): "Figure 23 shows the femur..."
+```
+
 ## Efficiency Tips
 
 ### 1. Cache Catalog Location
@@ -287,21 +327,22 @@ Recommended: [id] because [reason - downloads, OCR quality, completeness, AND cl
 Searching for [X] in [book title]:
 [Run search-catalog]
 
-Found on page [book_page] (leaf [leaf]):
-[snippet]
+Found on [page 42](https://archive.org/details/<id>/page/leaf42):
+> "[snippet]"
 
-Would you like to:
-1. See the full page text
-2. View the page in the IA reader
-3. Download the page image
+[View in context](https://archive.org/details/<id>/page/leaf42) | [Download page image]
+
+Would you like me to show more context or search for related terms?
 ```
 
 ### "Show me figure Y"
 ```
 [Search for figure reference]
-Figure Y appears on page [page] (leaf [leaf]).
+Figure Y appears on [page 89](https://archive.org/details/<id>/page/leaf89).
 
 [Download and display image]
 
 This figure shows [description from viewing image].
+
+[View in IA reader](https://archive.org/details/<id>/page/leaf89) for full context.
 ```
