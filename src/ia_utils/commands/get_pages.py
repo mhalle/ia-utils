@@ -12,55 +12,7 @@ from ia_utils.core import image, ia_client
 from ia_utils.core.database import get_document_metadata, get_catalog_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils import pages as page_utils
-
-
-def parse_page_range(range_str: str) -> list:
-    """Parse page range string into list of page numbers.
-
-    Supports:
-    - Single: '5' -> [5]
-    - Range: '1-5' -> [1, 2, 3, 4, 5]
-    - Multiple: '1,3,5' -> [1, 3, 5]
-    - Mixed: '1-3,5,7-9' -> [1, 2, 3, 5, 7, 8, 9]
-
-    Args:
-        range_str: Page range string
-
-    Returns:
-        List of page numbers
-
-    Raises:
-        ValueError: If range format is invalid
-    """
-    pages = set()
-
-    for part in range_str.split(','):
-        part = part.strip()
-        if not part:
-            continue
-
-        if '-' in part:
-            try:
-                start_str, end_str = part.split('-', 1)
-                start = int(start_str.strip())
-                end = int(end_str.strip())
-                if start > end:
-                    raise ValueError(f"Invalid range: {start} > {end}")
-                pages.update(range(start, end + 1))
-            except ValueError as e:
-                if 'invalid literal' in str(e):
-                    raise ValueError(f"Invalid range '{part}': must be integers")
-                raise
-        else:
-            try:
-                pages.add(int(part))
-            except ValueError:
-                raise ValueError(f"Invalid page number: {part}")
-
-    if not pages:
-        raise ValueError("No pages specified")
-
-    return sorted(list(pages))
+from ia_utils.utils.pages import parse_page_range
 
 
 @click.command()

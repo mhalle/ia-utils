@@ -7,6 +7,7 @@ from ia_utils.commands.create_catalog import create_catalog
 from ia_utils.commands.info import info
 from ia_utils.commands.get_page import get_page
 from ia_utils.commands.get_pages import get_pages
+from ia_utils.commands.get_page_stats import get_page_stats
 from ia_utils.commands.get_pdf import get_pdf
 from ia_utils.commands.get_text import get_text
 from ia_utils.commands.get_url import get_url
@@ -73,6 +74,7 @@ def cli(ctx, verbose):
 cli.add_command(create_catalog)
 cli.add_command(get_page)
 cli.add_command(get_pages)
+cli.add_command(get_page_stats)
 cli.add_command(get_pdf)
 cli.add_command(get_text)
 cli.add_command(get_url)
