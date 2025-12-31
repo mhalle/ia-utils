@@ -45,6 +45,7 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
     line_count    Total lines across blocks
     word_count    Word count (whitespace-separated)
     length        Non-whitespace character count
+    avg_confidence  Average OCR confidence (hOCR/djvu catalogs only)
 
     Examples:
         ia-utils get-page-stats -c catalog.sqlite
@@ -124,7 +125,8 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
             COUNT(*) as block_count,
             COALESCE(SUM(tb.line_count), 0) as line_count,
             SUM(tb.length) as length,
-            GROUP_CONCAT(tb.text, ' ') as all_text
+            GROUP_CONCAT(tb.text, ' ') as all_text,
+            AVG(tb.avg_confidence) as avg_confidence
         FROM text_blocks tb
         LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num
         WHERE tb.page_id IN ({placeholders})
@@ -141,7 +143,7 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
     # Build results with computed word count
     results = []
     for row in rows:
-        leaf_num, page_num, block_count, line_count, length, all_text = row
+        leaf_num, page_num, block_count, line_count, length, all_text, avg_confidence = row
         # Compute word count from concatenated text
         word_count = len(all_text.split()) if all_text else 0
         results.append({
@@ -151,6 +153,7 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
             'line_count': line_count,
             'word_count': word_count,
             'length': length or 0,
+            'avg_confidence': round(avg_confidence) if avg_confidence is not None else '',
         })
 
     # Determine output format and path
@@ -160,5 +163,5 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
         fmt = 'table'  # Default to table for multiple results
 
     # Output
-    fields = ['leaf', 'page', 'block_count', 'line_count', 'word_count', 'length']
+    fields = ['leaf', 'page', 'block_count', 'line_count', 'word_count', 'length', 'avg_confidence']
     write_output(fmt, fields, results, output_path)
