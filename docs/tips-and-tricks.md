@@ -7,21 +7,29 @@ Advanced techniques and shortcuts for efficiently using ia-utils.
 ```
 User wants to find a book?
   └─> search-ia with filters
+  └─> Include IA links when presenting results
 
 User has an ID, wants overview?
   └─> info <identifier>
+  └─> Link to the item: [Title](https://archive.org/details/<id>)
 
 User wants to search inside a book?
   └─> create-catalog (once), then search-catalog
+  └─> Link each result to its page in BookReader
 
 User asks about a specific page?
   └─> get-url --viewer (give them interactive link)
+
+Showing an image to the user?
+  └─> get-page, then ALWAYS include BookReader link
+  └─> Lets user explore context, zoom, navigate
 
 OCR looks garbled?
   └─> get-page and read the image directly
 
 User needs to compare editions?
   └─> Create catalogs for each, compare search results
+  └─> Link each edition so user can explore
 ```
 
 ## Providing Links to Users
@@ -30,6 +38,8 @@ User needs to compare editions?
 
 ### When to Provide Links
 
+- **First mention of any document**: When introducing a book or document, include a link to the item on Internet Archive
+- **Downloaded images**: Always accompany displayed page images with BookReader links so users can explore surrounding context
 - Search results: link to each page mentioned
 - Quotes or excerpts: link to source page
 - Figure/image references: link to viewer page
@@ -62,6 +72,39 @@ Found 3 matches for "femur":
 1. **Page 42** ([view](https://archive.org/details/id/page/leaf42)): "The femur is the longest bone..."
 2. **Page 89** ([view](https://archive.org/details/id/page/leaf89)): "...articulation of the femur with..."
 3. **Page 156** ([view](https://archive.org/details/id/page/leaf156)): "Figure 23 shows the femur..."
+```
+
+### Template for First Document Introduction
+
+When first presenting a document to the user, always include a link:
+
+```markdown
+I found a relevant book: [Hand Atlas of Human Anatomy](https://archive.org/details/b31362138)
+by Werner Spalteholz (1933). This is a high-quality scan with 800+ pages.
+
+Would you like me to search for specific topics in this atlas?
+```
+
+### Template for Displaying Images
+
+When downloading and displaying page images, always include a BookReader link. This lets users explore the surrounding text, zoom, and navigate:
+
+```markdown
+Here is the anatomical diagram from page 175:
+
+[Downloaded image displayed here]
+
+[View in BookReader](https://archive.org/details/b31362138/page/leaf175) -
+click to explore surrounding pages, zoom, and read related text.
+```
+
+For figures specifically:
+```markdown
+Figure 23 (The Femur) appears on [page 156](https://archive.org/details/b31362138/page/leaf156):
+
+[Downloaded image displayed here]
+
+The BookReader link above lets you see the figure legend and surrounding anatomical descriptions.
 ```
 
 ## Efficiency Tips
@@ -312,25 +355,26 @@ I'll search for editions of [work]:
 [Run search-ia with author/title]
 
 Key factors to consider:
-- [id1]: [year], [downloads] downloads, [ocr]
+- [Title (Year)](https://archive.org/details/id1): [downloads] downloads, [ocr]
   Rights: [rights status - e.g., "Public Domain" or "Copyright Not Cleared"]
-- [id2]: [year], [downloads] downloads, [ocr]
+- [Title (Year)](https://archive.org/details/id2): [downloads] downloads, [ocr]
   Rights: [rights status]
 
-Recommended: [id] because [reason - downloads, OCR quality, completeness, AND clear rights]
+Recommended: [Title](https://archive.org/details/id) because [reason - downloads, OCR quality, completeness, AND clear rights]
 ```
 
 **Always include rights information** - users need to know about potential restrictions.
+**Always link each edition** - users can click to explore before deciding.
 
 ### "Find information about X"
 ```
-Searching for [X] in [book title]:
+Searching for [X] in [Book Title](https://archive.org/details/<id>):
 [Run search-catalog]
 
 Found on [page 42](https://archive.org/details/<id>/page/leaf42):
 > "[snippet]"
 
-[View in context](https://archive.org/details/<id>/page/leaf42) | [Download page image]
+[View in BookReader](https://archive.org/details/<id>/page/leaf42) to see full context.
 
 Would you like me to show more context or search for related terms?
 ```
@@ -344,5 +388,6 @@ Figure Y appears on [page 89](https://archive.org/details/<id>/page/leaf89).
 
 This figure shows [description from viewing image].
 
-[View in IA reader](https://archive.org/details/<id>/page/leaf89) for full context.
+[View in BookReader](https://archive.org/details/<id>/page/leaf89) to explore the
+figure legend, surrounding text, and related illustrations on adjacent pages.
 ```

@@ -141,6 +141,8 @@ Safe values: "Public Domain", "No Known Copyright", CC licenses, pre-1928 US pub
   ia-utils get-url <id> -l <leaf>           # Direct image link
   ```
   Format as clickable markdown links: `[View page 42](https://archive.org/details/id/page/leaf42)`
+- **Link documents when first presented**: When introducing a book or document to the user for the first time, always include a link to the item on Internet Archive: `[Title](https://archive.org/details/<id>)`
+- **Link images to their context**: When downloading and displaying page images to the user, always accompany them with a BookReader link to that page. This allows users to explore surrounding text and images: `[View in context](https://archive.org/details/<id>/page/leaf<n>)`
 - Use `--has-ocr` when searching to ensure text is available
 - Wellcome Library (`-c wellcomelibrary`) has high-quality medical scans
 - Google Books scans are older with lower resolution
