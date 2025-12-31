@@ -28,17 +28,19 @@ def build_page_image_url(ia_id: str, leaf_num: int, size: str = 'original') -> s
         return f"https://archive.org/download/{ia_id}/page/leaf{leaf_num}_{size}.jpg"
 
 
-def build_viewer_url(ia_id: str, leaf_num: int) -> str:
-    """Build URL for the IA book viewer at a specific page.
+def build_viewer_url(ia_id: str, leaf_num: int = None) -> str:
+    """Build URL for the IA book viewer, optionally at a specific page.
 
     Args:
         ia_id: Internet Archive identifier
-        leaf_num: Leaf number (physical scan order)
+        leaf_num: Leaf number (physical scan order), or None for item root
 
     Returns:
         URL string
     """
-    return f"https://archive.org/details/{ia_id}/page/leaf{leaf_num}"
+    if leaf_num is not None:
+        return f"https://archive.org/details/{ia_id}/page/leaf{leaf_num}"
+    return f"https://archive.org/details/{ia_id}"
 
 
 def build_pdf_url(ia_id: str, leaf_num: int = None) -> str:
@@ -81,11 +83,11 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
     - URL with page: https://archive.org/details/b31362138/page/leaf5/
     - Omit if using -c (catalog contains IA ID)
 
-    PAGE NUMBER (optional for --pdf):
+    PAGE NUMBER (optional for --viewer and --pdf):
     - Use -l/--leaf for physical scan number (direct, fast)
     - Use -b/--book for printed page number (requires lookup)
     - Can also extract from URL (/page/leafN/ or /page/N/)
-    - For --pdf without page, returns base PDF URL
+    - Without page: --viewer returns item URL, --pdf returns base PDF URL
 
     IMAGE SIZES (for image URL, ignored with --viewer/--pdf):
     - small: ~300px width
@@ -97,6 +99,7 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
         ia-utils get-url anatomicalatlasi00smit -l 5
         ia-utils get-url -c catalog.sqlite -l 5 --size large
         ia-utils get-url -c catalog.sqlite -b 42 --viewer
+        ia-utils get-url -c catalog.sqlite --viewer
         ia-utils get-url -c catalog.sqlite --pdf
         ia-utils get-url -c catalog.sqlite -l 661 --pdf
     """
@@ -109,6 +112,10 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
     page_type_from_url = None
     if identifier:
         ia_id, page_from_url, page_type_from_url = page_utils.extract_ia_id_and_page(identifier)
+        # Warn if identifier looks like a file path (IA identifiers don't contain / or .)
+        if ia_id and ('/' in ia_id or '.' in ia_id):
+            logger.warning(f"Identifier '{ia_id}' contains '/' or '.' - did you mean to use -c for a catalog?")
+            sys.exit(1)
 
     # Load catalog if provided
     db = None
@@ -156,8 +163,8 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
         page_number_int = page_from_url
         num_type = page_type_from_url or 'leaf'
 
-    # Page is required unless --pdf is used
-    if page_number_int is None and not pdf:
+    # Page is required only for image URLs (not --viewer or --pdf)
+    if page_number_int is None and not pdf and not viewer:
         logger.error("Page number required: use -l/--leaf or -b/--book (or provide URL with /page/...)")
         sys.exit(1)
 
