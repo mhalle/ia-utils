@@ -181,7 +181,7 @@ def parse_hocr(hocr_bytes: bytes, logger: Optional[Logger] = None) -> List[Dict[
             line_count = len(lines)
 
             words = block.find_all(class_='ocrx_word')
-            length = len(text)
+            length = sum(1 for c in text if not c.isspace())
 
             # Average confidence from word-level x_wconf
             confidences = [
@@ -292,7 +292,7 @@ def blocks_from_searchtext(
                     'page_id': page_id,
                     'block_number': block_number,
                     'text': text,
-                    'length': len(text),
+                    'length': sum(1 for c in text if not c.isspace()),
                 })
 
     logger.progress_done(f"✓ ({len(text_blocks)} blocks, {len(pages)} pages)")
@@ -371,7 +371,7 @@ def parse_djvu_xml(
                 'bbox_y1': None,
                 'text': text,
                 'line_count': line_count,
-                'length': len(text),
+                'length': sum(1 for c in text if not c.isspace()),
                 'avg_confidence': avg_confidence,
                 'avg_font_size': None,
                 'parent_carea_id': None,
