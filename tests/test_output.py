@@ -44,6 +44,22 @@ class TestNormalizeFieldValue:
     def test_float_to_string(self):
         assert normalize_field_value(3.14) == '3.14'
 
+    def test_list_preserves_zero(self):
+        """Zero values should not be filtered from lists."""
+        assert normalize_field_value([0, 1, 2]) == '0, 1, 2'
+
+    def test_list_preserves_false(self):
+        """False values should not be filtered from lists."""
+        assert normalize_field_value([True, False, True]) == 'True, False, True'
+
+    def test_list_preserves_empty_string(self):
+        """Empty strings should not be filtered from lists."""
+        assert normalize_field_value(['a', '', 'b']) == 'a, , b'
+
+    def test_list_mixed_falsy_and_none(self):
+        """Only None should be filtered, not other falsy values."""
+        assert normalize_field_value([0, None, '', False, 'x']) == '0, , False, x'
+
 
 class TestDetermineFormat:
     def test_explicit_format_overrides(self):

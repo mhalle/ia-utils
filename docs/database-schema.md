@@ -1,14 +1,14 @@
 # Database Schema Reference
 
-Catalogs are SQLite3 databases. This document describes the schema for each catalog mode.
+Indexes are SQLite3 databases. This document describes the schema for each index mode.
 
 ## Common Tables (All Modes)
 
-### catalog_metadata
-Stores information about the catalog itself.
+### index_metadata
+Stores information about the index itself.
 
 ```sql
-CREATE TABLE catalog_metadata (
+CREATE TABLE index_metadata (
     key TEXT PRIMARY KEY,
     value TEXT
 );
@@ -17,8 +17,8 @@ CREATE TABLE catalog_metadata (
 | Key | Description |
 |-----|-------------|
 | `slug` | Human-readable filename base |
-| `created_at` | Catalog creation timestamp |
-| `catalog_mode` | `searchtext`, `hocr`, or `djvu` |
+| `created_at` | Index creation timestamp |
+| `index_mode` | `searchtext`, `hocr`, or `djvu` |
 
 ### document_metadata
 Stores Internet Archive metadata about the document.

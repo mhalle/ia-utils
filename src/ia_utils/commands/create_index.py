@@ -1,4 +1,4 @@
-"""Create catalog command."""
+"""Create index command."""
 
 import sys
 from pathlib import Path
@@ -19,7 +19,7 @@ def extract_ia_id(input_str: str) -> str:
     return input_str
 
 
-@click.command()
+@click.command('create-index')
 @click.argument('identifier')
 @click.option('-d', '--dir', 'output_dir', type=click.Path(file_okay=False),
               help='Output directory (default: current directory)')
@@ -27,14 +27,14 @@ def extract_ia_id(input_str: str) -> str:
 @click.option('--full', is_flag=True, default=False,
               help='Download full hOCR for complete metadata (slower)')
 @click.pass_context
-def create_catalog(ctx, identifier, output_dir, output, full):
-    """Create a catalog database from an Internet Archive document.
+def create_index(ctx, identifier, output_dir, output, full):
+    """Create an index database from an Internet Archive document.
 
     IDENTIFIER can be an IA ID or full URL:
     - anatomicalatlasi00smit
     - https://archive.org/details/anatomicalatlasi00smit
 
-    CATALOG MODES (auto-detected):
+    INDEX MODES (auto-detected):
 
     \b
     searchtext  Fast mode using pre-indexed text (default)
@@ -50,10 +50,10 @@ def create_catalog(ctx, identifier, output_dir, output, full):
     - Use -d to specify output directory
 
     Examples:
-        ia-utils create-catalog anatomicalatlasi00smit
-        ia-utils create-catalog anatomicalatlasi00smit --full
-        ia-utils create-catalog anatomicalatlasi00smit -d ./catalogs/
-        ia-utils create-catalog anatomicalatlasi00smit -o anatomy.sqlite
+        ia-utils create-index anatomicalatlasi00smit
+        ia-utils create-index anatomicalatlasi00smit --full
+        ia-utils create-index anatomicalatlasi00smit -d ./indexes/
+        ia-utils create-index anatomicalatlasi00smit -o anatomy.sqlite
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -63,7 +63,7 @@ def create_catalog(ctx, identifier, output_dir, output, full):
     # Show header when verbose
     if verbose:
         mode_str = "full (hOCR)" if full else "fast (searchtext)"
-        logger.section(f"Building catalog for: {ia_id} [{mode_str}]")
+        logger.section(f"Building index for: {ia_id} [{mode_str}]")
 
     if verbose:
         logger.subsection("1. Downloading files from Internet Archive...")
@@ -84,28 +84,28 @@ def create_catalog(ctx, identifier, output_dir, output, full):
             sys.exit(1)
 
         files = parser.parse_files(files_bytes)
-        blocks_list, pages_list, catalog_mode = download_hocr_mode(
+        blocks_list, pages_list, index_mode = download_hocr_mode(
             ia_id, files, logger, verbose
         )
         page_numbers_data = None
     else:
         # Fast mode: download ALL files in parallel
-        blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, catalog_mode = \
+        blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, index_mode = \
             download_fast_mode(ia_id, logger, verbose)
 
-        if catalog_mode == 'fallback_djvu':
+        if index_mode == 'fallback_djvu':
             # Searchtext not available, try DjVu XML
             if verbose:
                 logger.warning("   Searchtext not available, trying DjVu XML...")
-            blocks_list, pages_list, catalog_mode = download_djvu_mode(
+            blocks_list, pages_list, index_mode = download_djvu_mode(
                 ia_id, logger, verbose
             )
-            if catalog_mode == 'fallback_hocr':
+            if index_mode == 'fallback_hocr':
                 # DjVu XML also not available, fall back to hOCR
                 if verbose:
                     logger.warning("   DjVu XML not available, falling back to hOCR...")
                 files = parser.parse_files(files_bytes)
-                blocks_list, pages_list, catalog_mode = download_hocr_mode(
+                blocks_list, pages_list, index_mode = download_hocr_mode(
                     ia_id, files, logger, verbose
                 )
                 page_numbers_data = None
@@ -116,7 +116,7 @@ def create_catalog(ctx, identifier, output_dir, output, full):
             files = parser.parse_files(files_bytes)
 
     # For hOCR mode, download page numbers separately (files already parsed above)
-    if catalog_mode == 'hocr':
+    if index_mode == 'hocr':
         if verbose:
             logger.progress("   Downloading page numbers mapping...", nl=False)
         pn_candidates = [f['filename'] for f in files if f['filename'].endswith('_page_numbers.json')]
@@ -167,7 +167,7 @@ def create_catalog(ctx, identifier, output_dir, output, full):
         logger.subsection("4. Building database...")
 
     try:
-        database.create_catalog_database(
+        database.create_index_database(
             output_path,
             ia_id,
             final_slug,
@@ -175,7 +175,7 @@ def create_catalog(ctx, identifier, output_dir, output, full):
             files,
             blocks_list,
             page_numbers_data,
-            catalog_mode=catalog_mode,
+            index_mode=index_mode,
             pages=pages_list,
             logger=logger
         )
@@ -186,7 +186,7 @@ def create_catalog(ctx, identifier, output_dir, output, full):
     if verbose:
         logger.section("Complete")
         logger.info(f"✓ Database created: {output_path}")
-        logger.info(f"✓ Mode: {catalog_mode}")
+        logger.info(f"✓ Mode: {index_mode}")
     else:
         click.echo(output_path)
 
@@ -195,7 +195,7 @@ def download_hocr_mode(ia_id, files, logger, verbose):
     """Download and parse hOCR file for full metadata.
 
     Returns:
-        Tuple of (blocks_list, pages_list, catalog_mode)
+        Tuple of (blocks_list, pages_list, index_mode)
     """
     # Find hOCR filename
     hocr_candidates = [f['filename'] for f in files if f['filename'].endswith('_hocr.html')]
@@ -224,8 +224,8 @@ def download_djvu_mode(ia_id, logger, verbose):
     - {ia_id}_access_djvu.xml (variant)
 
     Returns:
-        Tuple of (blocks_list, pages_list, catalog_mode)
-        If DjVu XML unavailable, catalog_mode='fallback_hocr' and blocks_list is None.
+        Tuple of (blocks_list, pages_list, index_mode)
+        If DjVu XML unavailable, index_mode='fallback_hocr' and blocks_list is None.
     """
     djvu_patterns = [
         f"{ia_id}_djvu.xml",
@@ -266,8 +266,8 @@ def download_fast_mode(ia_id, logger, verbose):
     all in parallel. If searchtext files aren't available, signals fallback.
 
     Returns:
-        Tuple of (blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, catalog_mode)
-        If searchtext unavailable, catalog_mode='fallback_hocr' and blocks_list/pages_list are None.
+        Tuple of (blocks_list, pages_list, page_numbers_data, meta_bytes, files_bytes, index_mode)
+        If searchtext unavailable, index_mode='fallback_hocr' and blocks_list/pages_list are None.
     """
     if verbose:
         logger.progress("   Downloading all files (parallel)...", nl=False)

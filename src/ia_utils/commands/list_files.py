@@ -70,8 +70,8 @@ def get_file_list(ia_id: str, include_all: bool = False) -> List[Dict[str, Any]]
 
 @click.command('list-files')
 @click.argument('identifier', required=False)
-@click.option('-c', '--catalog', type=click.Path(exists=True),
-              help='Catalog database path.')
+@click.option('-i', '--index', type=click.Path(exists=True),
+              help='Index database path.')
 @click.option('-f', '--field', 'fields', multiple=True,
               help='Fields to show (repeatable). Use "*" for all fields.')
 @click.option('--all', 'include_all', is_flag=True,
@@ -84,13 +84,13 @@ def get_file_list(ia_id: str, include_all: bool = False) -> List[Dict[str, Any]]
               type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']),
               help='Output format.')
 @click.pass_context
-def list_files(ctx, identifier, catalog, fields, include_all, format_filter, output, output_format):
+def list_files(ctx, identifier, index, fields, include_all, format_filter, output, output_format):
     """List files in an Internet Archive item.
 
     Shows all original files with download URLs. Use --all to include
     derivative files (thumbnails, OCR text, etc.).
 
-    IDENTIFIER: IA identifier or URL (optional if -c provided).
+    IDENTIFIER: IA identifier or URL (optional if -i provided).
 
     DEFAULT FIELDS: name, format, size, url
 
@@ -98,7 +98,7 @@ def list_files(ctx, identifier, catalog, fields, include_all, format_filter, out
 
     Examples:
         ia-utils list-files anatomicalatlasi00smit
-        ia-utils list-files -c catalog.sqlite
+        ia-utils list-files -i index.sqlite
         ia-utils list-files anatomicalatlasi00smit --all
         ia-utils list-files anatomicalatlasi00smit --format-filter PDF
         ia-utils list-files anatomicalatlasi00smit -f '*' --output-format json
@@ -107,27 +107,27 @@ def list_files(ctx, identifier, catalog, fields, include_all, format_filter, out
     # Get IA identifier
     ia_id = None
 
-    if catalog:
+    if index:
         try:
-            db = sqlite_utils.Database(catalog)
+            db = sqlite_utils.Database(index)
             doc_metadata = get_document_metadata(db)
             if not doc_metadata:
-                click.echo("Error: No metadata found in catalog database", err=True)
+                click.echo("Error: No metadata found in index database", err=True)
                 sys.exit(1)
             ia_id = doc_metadata.get('identifier')
         except Exception as e:
-            click.echo(f"Error reading catalog: {e}", err=True)
+            click.echo(f"Error reading index: {e}", err=True)
             sys.exit(1)
 
     if identifier:
         id_from_arg = extract_ia_id(identifier)
         if ia_id and ia_id != id_from_arg:
-            click.echo(f"Error: ID mismatch - argument: {id_from_arg}, catalog: {ia_id}", err=True)
+            click.echo(f"Error: ID mismatch - argument: {id_from_arg}, index: {ia_id}", err=True)
             sys.exit(1)
         ia_id = id_from_arg
 
     if not ia_id:
-        click.echo("Error: Provide an IDENTIFIER or use -c/--catalog", err=True)
+        click.echo("Error: Provide an IDENTIFIER or use -i/--index", err=True)
         sys.exit(1)
 
     # Get file list

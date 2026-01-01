@@ -1,11 +1,11 @@
 # ia-utils
 
-A command-line tool for working with Internet Archive books and documents. Build searchable SQLite databases from OCR content, download pages and PDFs, and search across your local catalog.
+A command-line tool for working with Internet Archive books and documents. Build searchable SQLite databases from OCR content, download pages and PDFs, and search across your local index.
 
 ## Features
 
 - **Search Internet Archive** - Query IA metadata with filters for year, creator, subject, collection, language, and more
-- **Create local catalogs** - Build SQLite databases from any IA document with OCR (searchtext, hOCR, or DjVu)
+- **Create local indexes** - Build SQLite databases from any IA document with OCR (searchtext, hOCR, or DjVu)
 - **Full-text search** - Search OCR text with FTS5 support for phrases, boolean operators, and proximity queries
 - **Download pages** - Get individual pages or batches as JPG/PNG/JP2, with optional image processing
 - **Download PDFs** - Fetch PDFs directly from Internet Archive
@@ -18,7 +18,7 @@ See the [docs/](docs/) folder for detailed guides:
 - **[Quick Reference](docs/quick-reference.md)** - Command cheatsheet
 - **[Workflow Guide](docs/workflow-guide.md)** - Step-by-step workflows
 - **[Search Reference](docs/search-reference.md)** - Search options and examples
-- **[Catalog Reference](docs/catalog-reference.md)** - Building and querying catalogs
+- **[Index Reference](docs/index-reference.md)** - Building and querying indexes
 - **[Page Navigation](docs/page-navigation.md)** - Working with pages, leafs, and plates
 - **[Database Schema](docs/database-schema.md)** - SQLite schema for direct queries
 - **[Collections](docs/collections.md)** - Guide to IA collections by subject
@@ -43,15 +43,15 @@ uv sync
 # 1. Search for books on Internet Archive
 uv run ia-utils search-ia -q "anatomy atlas" --year 1900-1940 -m texts
 
-# 2. Create a searchable catalog from a document
-uv run ia-utils create-catalog anatomicalatlasi00smit -d ./catalogs/
+# 2. Create a searchable index from a document
+uv run ia-utils create-index anatomicalatlasi00smit -d ./indexes/
 
-# 3. Search the catalog by OCR text
-uv run ia-utils search-catalog -c catalogs/book.sqlite -q "femur"
+# 3. Search the index by OCR text
+uv run ia-utils search-index -i indexes/book.sqlite -q "femur"
 
 # 4. Download a page or PDF
-uv run ia-utils get-page -c catalogs/book.sqlite -l 42 -o page.jpg
-uv run ia-utils get-pdf -c catalogs/book.sqlite
+uv run ia-utils get-page -i indexes/book.sqlite -l 42 -o page.jpg
+uv run ia-utils get-pdf -i indexes/book.sqlite
 ```
 
 ## Commands
@@ -94,17 +94,17 @@ ia-utils search-ia --subject "anatomy" -f identifier -f title --output-format js
 
 #### `info` - Display Metadata
 
-Show metadata about a catalog or IA item:
+Show metadata about an index or IA item:
 
 ```bash
-# Catalog info
-ia-utils info catalog.sqlite
+# Index info
+ia-utils info index.sqlite
 
 # Remote IA item info
 ia-utils info anatomicalatlasi00smit
 
 # Specific fields as JSON
-ia-utils info catalog.sqlite -f title -f page_count --output-format json
+ia-utils info index.sqlite -f title -f page_count --output-format json
 ```
 
 #### `list-files` - List Files in an Item
@@ -132,79 +132,79 @@ ia-utils list-files anatomicalatlasi00smit -f '*'
 
 **Fields:** name, source, format, size, md5, mtime, crc32, sha1, url
 
-### Catalog Management
+### Index Management
 
-#### `create-catalog` - Build Searchable Database
+#### `create-index` - Build Searchable Database
 
-Create a SQLite catalog from any IA document with OCR:
+Create a SQLite index from any IA document with OCR:
 
 ```bash
-# Create catalog (auto-generates filename from metadata)
-ia-utils create-catalog anatomicalatlasi00smit
+# Create index (auto-generates filename from metadata)
+ia-utils create-index anatomicalatlasi00smit
 
 # Specify output directory
-ia-utils create-catalog anatomicalatlasi00smit -d ./catalogs/
+ia-utils create-index anatomicalatlasi00smit -d ./indexes/
 
 # Custom filename
-ia-utils create-catalog anatomicalatlasi00smit -o anatomy.sqlite
+ia-utils create-index anatomicalatlasi00smit -o anatomy.sqlite
 
 # From URL
-ia-utils create-catalog https://archive.org/details/anatomicalatlasi00smit
+ia-utils create-index https://archive.org/details/anatomicalatlasi00smit
 
 # Use full hOCR mode (slower, includes bounding boxes and confidence)
-ia-utils create-catalog anatomicalatlasi00smit --full
+ia-utils create-index anatomicalatlasi00smit --full
 ```
 
-**Catalog modes** (auto-detected):
+**Index modes** (auto-detected):
 - `searchtext` - Fast mode using pre-indexed searchtext (default, text-only)
 - `djvu` - Fallback using DjVu XML (includes confidence scores)
 - `hocr` - Full mode with bounding boxes, font sizes, confidence (use `--full`)
 
-The catalog includes:
+The index includes:
 - Document metadata (title, creator, date, subject, etc.)
 - Full OCR text organized by page and text block
 - FTS5 full-text search indexes
 - Page number mappings (leaf to printed page)
 - Archive file listings
 
-#### `rebuild-catalog` - Rebuild Indexes
+#### `rebuild-index` - Rebuild Indexes
 
-Rebuild FTS indexes or fully regenerate a catalog:
+Rebuild FTS indexes or fully regenerate an index:
 
 ```bash
 # Rebuild text blocks and FTS indexes only
-ia-utils rebuild-catalog catalog.sqlite
+ia-utils rebuild-index index.sqlite
 
 # Full regeneration (re-downloads source files)
-ia-utils rebuild-catalog catalog.sqlite --full
+ia-utils rebuild-index index.sqlite --full
 ```
 
-#### `search-catalog` - Full-Text Search
+#### `search-index` - Full-Text Search
 
 Search OCR text using SQLite FTS5:
 
 ```bash
 # Simple search
-ia-utils search-catalog -c catalog.sqlite -q "femur"
+ia-utils search-index -i index.sqlite -q "femur"
 
 # Phrase search
-ia-utils search-catalog -c catalog.sqlite -q '"circle of willis"'
+ia-utils search-index -i index.sqlite -q '"circle of willis"'
 
 # Boolean operators
-ia-utils search-catalog -c catalog.sqlite -q "anatomy OR physiology"
-ia-utils search-catalog -c catalog.sqlite -q "heart NOT surgery"
+ia-utils search-index -i index.sqlite -q "anatomy OR physiology"
+ia-utils search-index -i index.sqlite -q "heart NOT surgery"
 
 # Proximity search
-ia-utils search-catalog -c catalog.sqlite -q "femur NEAR/5 head"
+ia-utils search-index -i index.sqlite -q "femur NEAR/5 head"
 
 # Prefix matching
-ia-utils search-catalog -c catalog.sqlite -q "anat*"
+ia-utils search-index -i index.sqlite -q "anat*"
 
 # Block-level search (more granular)
-ia-utils search-catalog -c catalog.sqlite -q "nerve" --blocks
+ia-utils search-index -i index.sqlite -q "nerve" --blocks
 
 # Export results
-ia-utils search-catalog -c catalog.sqlite -q "muscle" --output-format json
+ia-utils search-index -i index.sqlite -q "muscle" --output-format json
 ```
 
 Hyphenated terms like "self-adjusting" are automatically quoted to prevent FTS5 misinterpretation. Use `--raw` for direct FTS5 control.
@@ -215,81 +215,81 @@ Hyphenated terms like "self-adjusting" are automatically quoted to prevent FTS5 
 
 ```bash
 # By leaf number (physical scan order)
-ia-utils get-page -c catalog.sqlite -l 42 -o page.jpg
+ia-utils get-page -i index.sqlite -l 42 -o page.jpg
 
 # By printed page number
-ia-utils get-page -c catalog.sqlite -b 100 -o page.jpg
+ia-utils get-page -i index.sqlite -b 100 -o page.jpg
 
 # Different sizes: small (~300px), medium (~600px), large (full), original (JP2)
-ia-utils get-page -c catalog.sqlite -l 42 --size original -o page.jp2
+ia-utils get-page -i index.sqlite -l 42 --size original -o page.jp2
 
 # Image processing
-ia-utils get-page -c catalog.sqlite -l 42 --autocontrast -o page.jpg
-ia-utils get-page -c catalog.sqlite -l 42 --cutoff 2 -o page.jpg
+ia-utils get-page -i index.sqlite -l 42 --autocontrast -o page.jpg
+ia-utils get-page -i index.sqlite -l 42 --cutoff 2 -o page.jpg
 ```
 
 #### `get-pages` - Download Multiple Pages
 
 ```bash
 # Download range as individual files
-ia-utils get-pages -c catalog.sqlite -l 1-10 -p output/page
+ia-utils get-pages -i index.sqlite -l 1-10 -p output/page
 
 # Download as ZIP archive
-ia-utils get-pages -c catalog.sqlite -l 100-200 --zip -o chapter.zip
+ia-utils get-pages -i index.sqlite -l 100-200 --zip -o chapter.zip
 
 # Download all pages as ZIP
-ia-utils get-pages -c catalog.sqlite --all --zip
+ia-utils get-pages -i index.sqlite --all --zip
 
 # With image processing
-ia-utils get-pages -c catalog.sqlite -l 1-20 -p pages/scan --autocontrast
+ia-utils get-pages -i index.sqlite -l 1-20 -p pages/scan --autocontrast
 
 # Parallel downloads (default: 4 jobs)
-ia-utils get-pages -c catalog.sqlite --all --zip -j 8
+ia-utils get-pages -i index.sqlite --all --zip -j 8
 ```
 
 #### `get-pdf` - Download PDF
 
 ```bash
-# Download using catalog (uses readable filename)
-ia-utils get-pdf -c catalog.sqlite
+# Download using index (uses readable filename)
+ia-utils get-pdf -i index.sqlite
 
 # Download by identifier
 ia-utils get-pdf anatomicalatlasi00smit
 
 # Custom output
-ia-utils get-pdf -c catalog.sqlite -o book.pdf -d ./downloads/
+ia-utils get-pdf -i index.sqlite -o book.pdf -d ./downloads/
 ```
 
 #### `get-text` - Extract OCR Text
 
 ```bash
 # Get text for a page
-ia-utils get-text -c catalog.sqlite -l 175
+ia-utils get-text -i index.sqlite -l 175
 
 # Get text for range
-ia-utils get-text -c catalog.sqlite -l 100-110
+ia-utils get-text -i index.sqlite -l 100-110
 
 # Get individual blocks with confidence scores
-ia-utils get-text -c catalog.sqlite -l 175 --blocks
+ia-utils get-text -i index.sqlite -l 175 --blocks
 
 # Export as JSON
-ia-utils get-text -c catalog.sqlite -l 175 --output-format json
+ia-utils get-text -i index.sqlite -l 175 --output-format json
 ```
 
 #### `get-url` - Get URLs Without Downloading
 
 ```bash
 # Image URL
-ia-utils get-url -c catalog.sqlite -l 42
+ia-utils get-url -i index.sqlite -l 42
 
 # Viewer URL
-ia-utils get-url -c catalog.sqlite -l 42 --viewer
+ia-utils get-url -i index.sqlite -l 42 --viewer
 
 # PDF URL
-ia-utils get-url -c catalog.sqlite --pdf
+ia-utils get-url -i index.sqlite --pdf
 
 # PDF URL with page anchor
-ia-utils get-url -c catalog.sqlite -l 42 --pdf
+ia-utils get-url -i index.sqlite -l 42 --pdf
 ```
 
 ## Identifiers
@@ -306,8 +306,8 @@ ia-utils get-pdf https://archive.org/details/anatomicalatlasi00smit
 # URL with page
 ia-utils get-page https://archive.org/details/anatomicalatlasi00smit/page/leaf42/
 
-# From catalog
-ia-utils get-pdf -c catalog.sqlite
+# From index
+ia-utils get-pdf -i index.sqlite
 ```
 
 ## Non-Book Items
@@ -372,17 +372,17 @@ Write to file with `-o`:
 
 ```bash
 ia-utils search-ia -q "botany" -o results.csv
-ia-utils search-catalog -c catalog.sqlite -q "plant" --output-format json -o matches.json
+ia-utils search-index -i index.sqlite -q "plant" --output-format json -o matches.json
 ```
 
-## Catalog Database Schema
+## Index Database Schema
 
-Catalogs are SQLite databases with these tables:
+Indexes are SQLite databases with these tables:
 
 | Table | Description |
 |-------|-------------|
 | `document_metadata` | Title, creator, date, subject, etc. |
-| `catalog_metadata` | Catalog info: slug, created_at, catalog_mode |
+| `index_metadata` | Index info: slug, created_at, index_mode |
 | `text_blocks` | OCR text blocks (hOCR/DjVu modes include bounding boxes, confidence) |
 | `pages_fts` | FTS5 index for page-level search |
 | `text_blocks_fts` | FTS5 index for block-level search |
@@ -392,7 +392,7 @@ Catalogs are SQLite databases with these tables:
 Query directly with sqlite3:
 
 ```bash
-sqlite3 catalog.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 20)
+sqlite3 index.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 20)
     FROM pages_fts WHERE pages_fts MATCH 'anatomy' LIMIT 10"
 ```
 
@@ -401,7 +401,7 @@ sqlite3 catalog.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 2
 Use `-v` or `--verbose` for detailed progress:
 
 ```bash
-ia-utils -v create-catalog anatomicalatlasi00smit
+ia-utils -v create-index anatomicalatlasi00smit
 ia-utils -v search-ia -q "medical"
 ```
 

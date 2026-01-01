@@ -11,7 +11,7 @@ Detailed guides for working with Internet Archive documents.
 ## Commands
 
 - [Search Reference](../docs/search-reference.md) - Search syntax, filters, output formats
-- [Catalog Reference](../docs/catalog-reference.md) - Building and querying catalogs
+- [Index Reference](../docs/index-reference.md) - Building and querying indexes
 - [Page Navigation](../docs/page-navigation.md) - Leaf vs book page numbers, plates
 
 ## Technical

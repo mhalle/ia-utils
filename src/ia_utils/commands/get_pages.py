@@ -9,7 +9,7 @@ import sqlite_utils
 from joblib import Parallel, delayed
 
 from ia_utils.core import image, ia_client
-from ia_utils.core.database import get_document_metadata, get_catalog_metadata
+from ia_utils.core.database import get_document_metadata, get_index_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils import pages as page_utils
 from ia_utils.utils.pages import parse_page_range
@@ -25,8 +25,8 @@ from ia_utils.utils.pages import parse_page_range
               help='Output filename prefix (required for individual files)')
 @click.option('-o', '--output', type=str,
               help='Output ZIP filename (for --zip mode)')
-@click.option('-c', '--catalog', type=click.Path(exists=True),
-              help='Catalog database path for page lookups and auto-naming')
+@click.option('-i', '--index', type=click.Path(exists=True),
+              help='Index database path for page lookups and auto-naming')
 @click.option('--zip', 'as_zip', is_flag=True,
               help='Output as ZIP file instead of individual files')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
@@ -46,15 +46,15 @@ from ia_utils.utils.pages import parse_page_range
 @click.option('-j', '--jobs', type=int, default=4,
               help='Parallel jobs for --zip mode (default: 4)')
 @click.pass_context
-def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog,
+def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
               as_zip, size, format, quality, autocontrast, cutoff, preserve_tone,
               skip_existing, jobs):
     """Download page images from Internet Archive.
 
-    IDENTIFIER (optional if -c provided):
+    IDENTIFIER (optional if -i provided):
     - IA ID: anatomicalatlasi00smit
     - URL: https://archive.org/details/anatomicalatlasi00smit
-    - Omit if using -c (catalog contains IA ID)
+    - Omit if using -i (index contains IA ID)
 
     PAGE SELECTION (one required):
 
@@ -93,13 +93,13 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
 
     \b
     # Download range as individual files
-    ia-utils get-pages -c book.sqlite -l 1-7 -p pages/atlas
+    ia-utils get-pages -i book.sqlite -l 1-7 -p pages/atlas
     # Download all pages as ZIP (auto-named)
-    ia-utils get-pages -c book.sqlite --all --zip
+    ia-utils get-pages -i book.sqlite --all --zip
     # Download range as ZIP
-    ia-utils get-pages -c book.sqlite -l 100-200 --zip -o chapter5.zip
+    ia-utils get-pages -i book.sqlite -l 100-200 --zip -o chapter5.zip
     # Download with image processing
-    ia-utils get-pages -c book.sqlite -l 1-10 -p out --autocontrast
+    ia-utils get-pages -i book.sqlite -l 1-10 -p out --autocontrast
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -110,42 +110,45 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
     if identifier:
         ia_id = page_utils.extract_ia_id(identifier)
 
-    # Load catalog if provided
+    # Load index if provided
     db = None
     total_pages = None
-    if catalog:
+    all_page_ids = None  # Actual leaf numbers from index
+    if index:
         if verbose:
-            logger.info(f"Loading catalog: {catalog}")
+            logger.info(f"Loading index: {index}")
         try:
-            db = sqlite_utils.Database(catalog)
+            db = sqlite_utils.Database(index)
             doc_metadata = get_document_metadata(db)
-            cat_metadata = get_catalog_metadata(db)
+            idx_metadata = get_index_metadata(db)
             if not doc_metadata:
-                logger.error("No metadata found in catalog database")
+                logger.error("No metadata found in index database")
                 sys.exit(1)
-            ia_id_from_catalog = doc_metadata['identifier']
-            slug = cat_metadata.get('slug', '')
+            ia_id_from_index = doc_metadata['identifier']
+            slug = idx_metadata.get('slug', '')
             # Verify IA ID matches if identifier was also provided
-            if ia_id and ia_id != ia_id_from_catalog:
-                logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")
+            if ia_id and ia_id != ia_id_from_index:
+                logger.error(f"IA ID mismatch - Identifier: {ia_id}, Index: {ia_id_from_index}")
                 sys.exit(1)
-            ia_id = ia_id_from_catalog
+            ia_id = ia_id_from_index
 
-            # Get page count from catalog for --all mode
+            # Get actual page IDs from index for --all mode
             if download_all:
                 try:
                     pages_rows = list(db.execute("SELECT DISTINCT page_id FROM text_blocks ORDER BY page_id").fetchall())
-                    total_pages = len(pages_rows)
+                    all_page_ids = [row[0] for row in pages_rows]
+                    total_pages = len(all_page_ids)
                     if verbose:
-                        logger.info(f"Found {total_pages} pages in catalog")
+                        logger.info(f"Found {total_pages} pages in index (leaf range: {min(all_page_ids)}-{max(all_page_ids)})")
                 except Exception:
+                    all_page_ids = None
                     pass
         except Exception as e:
-            logger.error(f"Failed to read catalog database: {e}")
+            logger.error(f"Failed to read index database: {e}")
             sys.exit(1)
 
     if not ia_id:
-        logger.error("IDENTIFIER required (or use -c with catalog)")
+        logger.error("IDENTIFIER required (or use -i with index)")
         sys.exit(1)
 
     # Validate page selection options
@@ -183,8 +186,11 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
 
     # Get total pages for --all mode
     if download_all:
-        if total_pages is None:
-            # Fetch from IA metadata
+        if all_page_ids is not None:
+            # Use actual page IDs from index (handles leaf0, non-contiguous pages)
+            pages = all_page_ids
+        elif total_pages is None:
+            # Fetch from IA metadata - use range starting at 0 (leaf0 is valid)
             if verbose:
                 logger.progress("Fetching page count from metadata...", nl=False)
             try:
@@ -196,11 +202,16 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
                 logger.error(f"Failed to get page count: {e}")
                 sys.exit(1)
 
-        if total_pages == 0:
-            logger.error(f"No pages found for {ia_id}")
-            sys.exit(1)
+            if total_pages == 0:
+                logger.error(f"No pages found for {ia_id}")
+                sys.exit(1)
 
-        pages = list(range(1, total_pages + 1))
+            # Leaf numbers are 0-indexed (leaf0 through leaf{n-1})
+            pages = list(range(0, total_pages))
+        else:
+            # Shouldn't happen, but fallback
+            pages = list(range(0, total_pages))
+
         num_type = 'leaf'
     elif leaf:
         try:
@@ -255,16 +266,12 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, catalog
 
 def _download_single_page(args):
     """Download a single page image (top-level for pickling)."""
-    page_num, ia_id, size = args
-    # For --all mode, page_num is already a leaf number
-    leaf_num = page_num
-
-    # API pages are 0-indexed
-    api_page = leaf_num - 1
+    leaf_num, ia_id, size = args
+    # leaf_num is the actual leaf number (used directly in URLs like leaf{n})
 
     # Download image bytes directly from IA
     source = image.APIImageSource(size=size)
-    image_bytes = source.fetch(ia_id, api_page)
+    image_bytes = source.fetch(ia_id, leaf_num)
 
     # Use standard IA naming: {ia_id}_0001.jpg, etc.
     filename = f"{ia_id}_{leaf_num:04d}.jpg"

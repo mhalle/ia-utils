@@ -1,4 +1,4 @@
-"""Rebuild catalog command."""
+"""Rebuild index command."""
 
 import sys
 from pathlib import Path
@@ -6,51 +6,51 @@ import click
 import sqlite_utils
 
 from ia_utils.core import ia_client, parser, database
-from ia_utils.core.database import get_document_metadata, get_catalog_metadata
+from ia_utils.core.database import get_document_metadata, get_index_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils.slug import generate_slug
 
 
-@click.command()
-@click.argument('catalog', type=click.Path(exists=True))
+@click.command('rebuild-index')
+@click.argument('index', type=click.Path(exists=True))
 @click.option('--full', is_flag=True,
-              help='Fully regenerate catalog including metadata (re-downloads all files).')
+              help='Fully regenerate index including metadata (re-downloads all files).')
 @click.pass_context
-def rebuild_catalog(ctx, catalog, full):
-    """Rebuild text_blocks and FTS indexes in an existing catalog database.
+def rebuild_index(ctx, index, full):
+    """Rebuild text_blocks and FTS indexes in an existing index database.
 
     By default, rebuilds text_blocks from the source hOCR file (downloaded
     from Internet Archive), then rebuilds FTS indexes without modifying
     other tables (document_metadata, archive_files, etc.).
 
-    Use --full to completely regenerate the catalog, including metadata.
+    Use --full to completely regenerate the index, including metadata.
     This is useful after schema changes that add new metadata fields.
 
     Examples:
-        ia-utils rebuild-catalog catalog.sqlite
-        ia-utils rebuild-catalog catalog.sqlite --full
-        ia-utils -v rebuild-catalog catalog.sqlite --full
+        ia-utils rebuild-index index.sqlite
+        ia-utils rebuild-index index.sqlite --full
+        ia-utils -v rebuild-index index.sqlite --full
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
 
     try:
-        db = sqlite_utils.Database(catalog)
+        db = sqlite_utils.Database(index)
     except Exception as e:
-        logger.error(f"Failed to open catalog: {e}")
+        logger.error(f"Failed to open index: {e}")
         sys.exit(1)
 
     # Verify required tables exist
     try:
         tables = {t.name for t in db.tables}
         if 'document_metadata' not in tables:
-            logger.error("Catalog must have document_metadata table")
+            logger.error("Index must have document_metadata table")
             sys.exit(1)
         if 'archive_files' not in tables:
-            logger.error("Catalog must have archive_files table")
+            logger.error("Index must have archive_files table")
             sys.exit(1)
     except Exception as e:
-        logger.error(f"Failed to verify catalog structure: {e}")
+        logger.error(f"Failed to verify index structure: {e}")
         sys.exit(1)
 
     # Get IA identifier - handle both new key-value and legacy fixed-column schemas
@@ -64,17 +64,17 @@ def rebuild_catalog(ctx, catalog, full):
             if result and result[0][0]:
                 ia_id = result[0][0]
             else:
-                logger.error("No IA identifier found in catalog database")
+                logger.error("No IA identifier found in index database")
                 sys.exit(1)
     except Exception as e:
-        logger.error(f"Failed to read identifier from catalog: {e}")
+        logger.error(f"Failed to read identifier from index: {e}")
         sys.exit(1)
 
     # Full regeneration mode
     if full:
-        catalog_path = Path(catalog)
+        index_path = Path(index)
         if verbose:
-            logger.section(f"Full regeneration: {catalog}")
+            logger.section(f"Full regeneration: {index}")
             logger.info(f"IA identifier: {ia_id}")
             logger.subsection("1. Downloading files from Internet Archive...")
 
@@ -133,10 +133,10 @@ def rebuild_catalog(ctx, catalog, full):
             logger.subsection("4. Rebuilding database...")
 
         # Remove old file and create new one
-        catalog_path.unlink()
+        index_path.unlink()
         try:
-            database.create_catalog_database(
-                catalog_path,
+            database.create_index_database(
+                index_path,
                 ia_id,
                 final_slug,
                 metadata,
@@ -151,9 +151,9 @@ def rebuild_catalog(ctx, catalog, full):
 
         if verbose:
             logger.section("Complete")
-            logger.info(f"✓ Catalog regenerated: {catalog_path}")
+            logger.info(f"✓ Index regenerated: {index_path}")
         else:
-            click.echo(str(catalog_path))
+            click.echo(str(index_path))
         return
 
     # Find hOCR file in archive_files
@@ -171,7 +171,7 @@ def rebuild_catalog(ctx, catalog, full):
         sys.exit(1)
 
     if verbose:
-        logger.section(f"Rebuilding catalog: {catalog}")
+        logger.section(f"Rebuilding index: {index}")
 
     try:
         if verbose:
@@ -195,15 +195,15 @@ def rebuild_catalog(ctx, catalog, full):
             logger.progress_done("✓")
 
         # Get final size and stats
-        catalog_path = Path(catalog)
-        size_mb = catalog_path.stat().st_size / 1024 / 1024
+        index_path = Path(index)
+        size_mb = index_path.stat().st_size / 1024 / 1024
 
         if verbose:
             logger.section("Complete")
-            logger.info(f"✓ Catalog rebuilt: {catalog_path}")
+            logger.info(f"✓ Index rebuilt: {index_path}")
             logger.info(f"✓ Size: {size_mb:.1f} MB")
         else:
-            click.echo(str(catalog_path))
+            click.echo(str(index_path))
 
     except Exception as e:
         logger.error(f"Rebuild failed: {e}")

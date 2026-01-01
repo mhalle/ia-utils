@@ -65,23 +65,23 @@ def build_pdf_url(ia_id: str, leaf_num: int = None) -> str:
 @click.argument('identifier', required=False)
 @click.option('-l', '--leaf', type=int, help='Leaf number (physical scan order)')
 @click.option('-b', '--book', type=int, help='Book page number (printed page, requires lookup)')
-@click.option('-c', '--catalog', type=click.Path(exists=True), help='Catalog database path')
+@click.option('-i', '--index', type=click.Path(exists=True), help='Index database path')
 @click.option('--viewer', is_flag=True, help='Get viewer URL instead of image URL')
 @click.option('--pdf', is_flag=True, help='Get PDF URL (with #page if page specified)')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
               default='original', help='Image size (default: original, ignored with --viewer/--pdf)')
 @click.pass_context
-def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
+def get_url(ctx, identifier, leaf, book, index, viewer, pdf, size):
     """Get URL for a page image, viewer, or PDF from Internet Archive.
 
     By default returns direct image URL. Use --viewer for book reader URL,
     or --pdf for PDF URL.
 
-    IDENTIFIER (optional if -c provided):
+    IDENTIFIER (optional if -i provided):
     - IA ID: anatomicalatlasi00smit
     - URL: https://archive.org/details/anatomicalatlasi00smit
     - URL with page: https://archive.org/details/b31362138/page/leaf5/
-    - Omit if using -c (catalog contains IA ID)
+    - Omit if using -i (index contains IA ID)
 
     PAGE NUMBER (optional for --viewer and --pdf):
     - Use -l/--leaf for physical scan number (direct, fast)
@@ -97,11 +97,11 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
 
     Examples:
         ia-utils get-url anatomicalatlasi00smit -l 5
-        ia-utils get-url -c catalog.sqlite -l 5 --size large
-        ia-utils get-url -c catalog.sqlite -b 42 --viewer
-        ia-utils get-url -c catalog.sqlite --viewer
-        ia-utils get-url -c catalog.sqlite --pdf
-        ia-utils get-url -c catalog.sqlite -l 661 --pdf
+        ia-utils get-url -i index.sqlite -l 5 --size large
+        ia-utils get-url -i index.sqlite -b 42 --viewer
+        ia-utils get-url -i index.sqlite --viewer
+        ia-utils get-url -i index.sqlite --pdf
+        ia-utils get-url -i index.sqlite -l 661 --pdf
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -114,31 +114,31 @@ def get_url(ctx, identifier, leaf, book, catalog, viewer, pdf, size):
         ia_id, page_from_url, page_type_from_url = page_utils.extract_ia_id_and_page(identifier)
         # Warn if identifier looks like a file path (IA identifiers don't contain / or .)
         if ia_id and ('/' in ia_id or '.' in ia_id):
-            logger.warning(f"Identifier '{ia_id}' contains '/' or '.' - did you mean to use -c for a catalog?")
+            logger.warning(f"Identifier '{ia_id}' contains '/' or '.' - did you mean to use -i for an index?")
             sys.exit(1)
 
-    # Load catalog if provided
+    # Load index if provided
     db = None
-    if catalog:
-        logger.verbose_info(f"Loading catalog: {catalog}")
+    if index:
+        logger.verbose_info(f"Loading index: {index}")
         try:
-            db = sqlite_utils.Database(catalog)
+            db = sqlite_utils.Database(index)
             doc_metadata = get_document_metadata(db)
             if not doc_metadata:
-                logger.error("No metadata found in catalog database")
+                logger.error("No metadata found in index database")
                 sys.exit(1)
-            ia_id_from_catalog = doc_metadata['identifier']
+            ia_id_from_index = doc_metadata['identifier']
             # Verify IA ID matches if identifier was also provided
-            if ia_id and ia_id != ia_id_from_catalog:
-                logger.error(f"IA ID mismatch - Identifier: {ia_id}, Catalog: {ia_id_from_catalog}")
+            if ia_id and ia_id != ia_id_from_index:
+                logger.error(f"IA ID mismatch - Identifier: {ia_id}, Index: {ia_id_from_index}")
                 sys.exit(1)
-            ia_id = ia_id_from_catalog
+            ia_id = ia_id_from_index
         except Exception as e:
-            logger.error(f"Failed to read catalog database: {e}")
+            logger.error(f"Failed to read index database: {e}")
             sys.exit(1)
 
     if not ia_id:
-        logger.error("IDENTIFIER required (or use -c with catalog)")
+        logger.error("IDENTIFIER required (or use -i with index)")
         sys.exit(1)
 
     # Validate mutually exclusive options

@@ -25,8 +25,8 @@ Advanced techniques and shortcuts for efficiently using ia-utils.
 **❌ Wrong approach** (too many autonomous calls):
 ```
 [Searches for "femur"]
-[Creates catalog]
-[Searches catalog]
+[Creates index]
+[Searches index]
 [Downloads 5 pages]
 [Reads each page]
 [Synthesizes answer]
@@ -96,7 +96,7 @@ User has an ID, wants overview?
   └─> Link to the item: [Title](https://archive.org/details/<id>)
 
 User wants to search inside a book?
-  └─> create-catalog (once), then search-catalog
+  └─> create-index (once), then search-index
   └─> Link each result to its page in BookReader
 
 User asks about a specific page?
@@ -110,7 +110,7 @@ OCR looks garbled?
   └─> get-page and read the image directly
 
 User needs to compare editions?
-  └─> Create catalogs for each, compare search results
+  └─> Create indexes for each, compare search results
   └─> Link each edition so user can explore
 ```
 
@@ -191,20 +191,20 @@ The BookReader link above lets you see the figure legend and surrounding anatomi
 
 ## Efficiency Tips
 
-### 1. Cache Catalog Location
-After creating a catalog, note its path. The default naming convention is:
+### 1. Cache Index Location
+After creating an index, note its path. The default naming convention is:
 ```
 {creator}-{title}-{year}_{ia_id}.sqlite
 ```
 Example: `spalteholz-hand-atlas-human-anatomy-1933_b31362138.sqlite`
 
-### 2. Use Glob Patterns for Catalogs
+### 2. Use Glob Patterns for Indexes
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "femur"
+ia-utils search-index -c indexes/spalteholz*.sqlite -q "femur"
 ```
 
 ### 3. Skip Full Mode Unless Needed
-Default `create-catalog` is usually sufficient. Only use `--full` when you need:
+Default `create-index` is usually sufficient. Only use `--full` when you need:
 - OCR confidence scores
 - Bounding box coordinates
 - Font size information
@@ -212,7 +212,7 @@ Default `create-catalog` is usually sufficient. Only use `--full` when you need:
 ### 4. Viewer URLs are Best for Users
 Always prefer `--viewer` when giving links to users:
 ```bash
-ia-utils get-url -c catalog.sqlite -l 175 --viewer
+ia-utils get-url -i index.sqlite -l 175 --viewer
 # Better: https://archive.org/details/b31362138/page/leaf175
 # (user can navigate, zoom, read)
 ```
@@ -220,7 +220,7 @@ ia-utils get-url -c catalog.sqlite -l 175 --viewer
 ### 5. Download Images for Figures
 When discussing figures or diagrams, download and display them:
 ```bash
-ia-utils get-page -c catalog.sqlite -l 175 -o fig.jpg
+ia-utils get-page -i index.sqlite -l 175 -o fig.jpg
 ```
 
 ## Handling OCR Quality Issues
@@ -234,7 +234,7 @@ ia-utils get-page -c catalog.sqlite -l 175 -o fig.jpg
 
 **1. Visual Inspection**
 ```bash
-ia-utils get-page -c catalog.sqlite -l <problem_leaf> -o check.jpg
+ia-utils get-page -i index.sqlite -l <problem_leaf> -o check.jpg
 # Then read the image directly
 ```
 
@@ -253,7 +253,7 @@ Old texts often have archaic spellings or OCR substitutions:
 
 **4. Use Prefix Search**
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q "anat*"
+ia-utils search-index -i index.sqlite -q "anat*"
 ```
 
 ## Finding Book Structure
@@ -279,9 +279,9 @@ Look for: appendix, index, plates
 ### Find Chapter Boundaries
 Search for chapter markers:
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q "CHAPTER"
-ia-utils search-catalog -c catalog.sqlite -q "PART"
-ia-utils search-catalog -c catalog.sqlite -q "SECTION"
+ia-utils search-index -i index.sqlite -q "CHAPTER"
+ia-utils search-index -i index.sqlite -q "PART"
+ia-utils search-index -i index.sqlite -q "SECTION"
 ```
 
 ## Advanced Search Techniques
@@ -324,15 +324,15 @@ AND pages_fts MATCH 'term';
 
 ### Compare Same Topic Across Books
 ```bash
-# Create catalogs for comparison candidates
+# Create indexes for comparison candidates
 for id in book1 book2 book3; do
-  ia-utils create-catalog $id -d ./compare/
+  ia-utils create-index $id -d ./compare/
 done
 
 # Search each
 for f in ./compare/*.sqlite; do
   echo "=== $(basename $f) ==="
-  ia-utils search-catalog -c "$f" -q "topic" -l 5
+  ia-utils search-index -i "$f" -q "topic" -l 5
 done
 ```
 
@@ -341,16 +341,16 @@ For research across many books, create a master index:
 ```sql
 -- In a new database
 CREATE TABLE corpus (
-  source_catalog TEXT,
+  source_index TEXT,
   ia_id TEXT,
   leaf INTEGER,
   book_page TEXT,
   text TEXT
 );
 
--- Populate from each catalog
+-- Populate from each index
 INSERT INTO corpus
-SELECT 'catalog1.sqlite', 'id1', page_id, pn.book_page_number, text
+SELECT 'index1.sqlite', 'id1', page_id, pn.book_page_number, text
 FROM text_blocks tb
 LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num;
 ```
@@ -412,8 +412,8 @@ ia-utils info <id> -f title -f date -f ocr -f downloads
 
 ### Quick Quality Check
 ```bash
-ia-utils create-catalog <id> -d /tmp/
-ia-utils search-catalog -c /tmp/*.sqlite -q "common word" -l 3
+ia-utils create-index <id> -d /tmp/
+ia-utils search-index -c /tmp/*.sqlite -q "common word" -l 3
 rm /tmp/*.sqlite  # Clean up
 ```
 
@@ -451,7 +451,7 @@ Recommended: [Title](https://archive.org/details/id) because [reason - downloads
 ### "Find information about X"
 ```
 Searching for [X] in [Book Title](https://archive.org/details/<id>):
-[Run search-catalog]
+[Run search-index]
 
 Found on [page 42](https://archive.org/details/<id>/page/leaf42):
 > "[snippet]"

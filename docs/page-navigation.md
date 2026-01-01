@@ -53,10 +53,10 @@ leaf_num | book_page_number | confidence
 ### Command Line
 ```bash
 # Get URL for book page 145 (auto-converts to leaf)
-ia-utils get-url -c catalog.sqlite -b 145
+ia-utils get-url -i index.sqlite -b 145
 
 # Get URL for leaf 175
-ia-utils get-url -c catalog.sqlite -l 175
+ia-utils get-url -i index.sqlite -l 175
 ```
 
 ### SQL Queries
@@ -86,20 +86,20 @@ WHERE book_page_number IS NULL OR book_page_number = '';
 Usually in the first 20 leafs:
 ```bash
 # Search method
-ia-utils search-catalog -c catalog.sqlite -q "contents"
+ia-utils search-index -i index.sqlite -q "contents"
 
 # Direct text retrieval
-ia-utils get-text -c catalog.sqlite -l 2-20
+ia-utils get-text -i index.sqlite -l 2-20
 ```
 
 ### Index
 Usually at the end of the book:
 ```bash
 # Search method
-ia-utils search-catalog -c catalog.sqlite -q "index"
+ia-utils search-index -i index.sqlite -q "index"
 
 # If you know the index starts at leaf 937
-ia-utils get-text -c catalog.sqlite -l 937-970
+ia-utils get-text -i index.sqlite -l 937-970
 ```
 
 ### Preface/Introduction
@@ -125,9 +125,9 @@ AND leaf_num > 10;  -- Skip front matter
 ### Finding Figure References in Text
 ```bash
 # Search for figure mentions
-ia-utils search-catalog -c catalog.sqlite -q "Fig"
-ia-utils search-catalog -c catalog.sqlite -q '"Fig. 210"'
-ia-utils search-catalog -c catalog.sqlite -q "Plate"
+ia-utils search-index -i index.sqlite -q "Fig"
+ia-utils search-index -i index.sqlite -q '"Fig. 210"'
+ia-utils search-index -i index.sqlite -q "Plate"
 ```
 
 ### Locating Figures
@@ -136,17 +136,17 @@ Figures are typically on the same page or nearby. The search results give you th
 ```bash
 # Found reference to Fig. 210 on leaf 175
 # View the page
-ia-utils get-url -c catalog.sqlite -l 175 --viewer
+ia-utils get-url -i index.sqlite -l 175 --viewer
 
 # Download to examine
-ia-utils get-page -c catalog.sqlite -l 175 -o fig210.jpg
+ia-utils get-page -i index.sqlite -l 175 -o fig210.jpg
 ```
 
 ### Index Lookup for Figures
 If the book has a figure index:
 ```bash
 # Get index text
-ia-utils get-text -c catalog.sqlite -l 937-970 > index.txt
+ia-utils get-text -i index.sqlite -l 937-970 > index.txt
 # Search the index for specific figures
 grep -i "fig" index.txt
 ```
@@ -165,9 +165,9 @@ Plates (especially color plates) require special discovery techniques because th
 
 **1. Search for plate references in text:**
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q "Plate"
-ia-utils search-catalog -c catalog.sqlite -q "plate"
-ia-utils search-catalog -c catalog.sqlite -q "facing page"
+ia-utils search-index -i index.sqlite -q "Plate"
+ia-utils search-index -i index.sqlite -q "plate"
+ia-utils search-index -i index.sqlite -q "facing page"
 ```
 
 **2. Find unnumbered pages (potential plates):**
@@ -181,16 +181,16 @@ ORDER BY leaf_num;
 **3. Search for the subject near expected location:**
 ```bash
 # If text says "liver" is on page 547, check nearby leaves
-ia-utils search-catalog -c catalog.sqlite -q "liver"
+ia-utils search-index -i index.sqlite -q "liver"
 # Then examine leaves around the matches
 ```
 
 **4. Visual inspection (for LLMs with vision):**
 ```bash
 # Download the page and adjacent pages
-ia-utils get-page -c catalog.sqlite -l 600 -o check600.jpg
-ia-utils get-page -c catalog.sqlite -l 601 -o check601.jpg
-ia-utils get-page -c catalog.sqlite -l 602 -o check602.jpg
+ia-utils get-page -i index.sqlite -l 600 -o check600.jpg
+ia-utils get-page -i index.sqlite -l 601 -o check601.jpg
+ia-utils get-page -i index.sqlite -l 602 -o check602.jpg
 ```
 
 Look for:
@@ -209,17 +209,17 @@ When you find a reference to a figure, the actual image may be:
 ### Example: Finding a Plate
 ```bash
 # 1. Search for subject
-ia-utils search-catalog -c catalog.sqlite -q "liver" -l 10
+ia-utils search-index -i index.sqlite -q "liver" -l 10
 
 # 2. Note the leaf numbers from results (e.g., leaf 612)
 
 # 3. Get viewer URL for context
-ia-utils get-url -c catalog.sqlite -l 612 --viewer
+ia-utils get-url -i index.sqlite -l 612 --viewer
 
 # 4. Download surrounding pages to find the actual plate
-ia-utils get-page -c catalog.sqlite -l 611 -o before.jpg
-ia-utils get-page -c catalog.sqlite -l 612 -o target.jpg
-ia-utils get-page -c catalog.sqlite -l 613 -o after.jpg
+ia-utils get-page -i index.sqlite -l 611 -o before.jpg
+ia-utils get-page -i index.sqlite -l 612 -o target.jpg
+ia-utils get-page -i index.sqlite -l 613 -o after.jpg
 
 # 5. Visually inspect to find the best illustration
 ```
@@ -246,27 +246,27 @@ ia-utils get-page -c catalog.sqlite -l 613 -o after.jpg
 ### Downloading Page Ranges
 ```bash
 # As individual files
-ia-utils get-pages -c catalog.sqlite -l 100-120 -p output/chapter5
+ia-utils get-pages -i index.sqlite -l 100-120 -p output/chapter5
 
 # As ZIP
-ia-utils get-pages -c catalog.sqlite -l 100-120 --zip -o chapter5.zip
+ia-utils get-pages -i index.sqlite -l 100-120 --zip -o chapter5.zip
 
 # By book page
-ia-utils get-pages -c catalog.sqlite -b 50-75 -p output/
+ia-utils get-pages -i index.sqlite -b 50-75 -p output/
 ```
 
 ### Getting Text for Range
 ```bash
-ia-utils get-text -c catalog.sqlite -l 100-120
-ia-utils get-text -c catalog.sqlite -l 100-120 -o chapter.txt
-ia-utils get-text -c catalog.sqlite -l 100-120 --output-format json
+ia-utils get-text -i index.sqlite -l 100-120
+ia-utils get-text -i index.sqlite -l 100-120 -o chapter.txt
+ia-utils get-text -i index.sqlite -l 100-120 --output-format json
 ```
 
 ## URL Formats
 
 ### Viewer URL (Recommended for Users)
 ```bash
-ia-utils get-url -c catalog.sqlite -l 175 --viewer
+ia-utils get-url -i index.sqlite -l 175 --viewer
 # https://archive.org/details/b31362138/page/leaf175
 ```
 Uses `leaf{n}` format (0-indexed). Best for giving users a link to explore interactively.
@@ -279,24 +279,24 @@ The BookReader also accepts book page numbers directly:
 ### Image URL
 ```bash
 # Different sizes - all use leaf{n} format
-ia-utils get-url -c catalog.sqlite -l 175 --size small
+ia-utils get-url -i index.sqlite -l 175 --size small
 # https://archive.org/download/b31362138/page/leaf175_small.jpg
 
-ia-utils get-url -c catalog.sqlite -l 175 --size medium
-ia-utils get-url -c catalog.sqlite -l 175 --size large
+ia-utils get-url -i index.sqlite -l 175 --size medium
+ia-utils get-url -i index.sqlite -l 175 --size large
 
-ia-utils get-url -c catalog.sqlite -l 175 --size original
+ia-utils get-url -i index.sqlite -l 175 --size original
 # https://archive.org/download/b31362138/b31362138_jp2.zip/b31362138_jp2/b31362138_0175.jp2
 ```
 
 ### PDF URL
 ```bash
 # Full PDF
-ia-utils get-url -c catalog.sqlite --pdf
+ia-utils get-url -i index.sqlite --pdf
 # https://archive.org/download/b31362138/b31362138.pdf
 
 # PDF with page anchor (leaf + 1 = PDF page)
-ia-utils get-url -c catalog.sqlite -l 175 --pdf
+ia-utils get-url -i index.sqlite -l 175 --pdf
 # https://archive.org/download/b31362138/b31362138.pdf#page=176
 ```
 Note: PDF pages are 1-indexed, so leaf N → PDF page N+1.
@@ -307,13 +307,13 @@ When OCR quality is poor or you need to see a figure:
 
 ```bash
 # Download medium quality (default, fast)
-ia-utils get-page -c catalog.sqlite -l 175 -o page175.jpg
+ia-utils get-page -i index.sqlite -l 175 -o page175.jpg
 
 # Large for detailed examination
-ia-utils get-page -c catalog.sqlite -l 175 --size large -o page175_large.jpg
+ia-utils get-page -i index.sqlite -l 175 --size large -o page175_large.jpg
 
 # Apply enhancement for faded scans
-ia-utils get-page -c catalog.sqlite -l 175 --autocontrast -o enhanced.jpg
+ia-utils get-page -i index.sqlite -l 175 --autocontrast -o enhanced.jpg
 ```
 
 Then use your image viewing capability to read the content directly.
@@ -323,29 +323,29 @@ Then use your image viewing capability to read the content directly.
 ### "Find page 145"
 ```bash
 # Assumes book page number
-ia-utils get-url -c catalog.sqlite -b 145 --viewer
+ia-utils get-url -i index.sqlite -b 145 --viewer
 ```
 
 ### "Show me the femur diagram"
 ```bash
 # Search for mentions
-ia-utils search-catalog -c catalog.sqlite -q "femur" -l 10
+ia-utils search-index -i index.sqlite -q "femur" -l 10
 # Take the most relevant leaf number, then
-ia-utils get-page -c catalog.sqlite -l <number> -o femur.jpg
+ia-utils get-page -i index.sqlite -l <number> -o femur.jpg
 ```
 
 ### "What's on pages 100-110?"
 ```bash
-ia-utils get-text -c catalog.sqlite -l 100-110
+ia-utils get-text -i index.sqlite -l 100-110
 # Or if they mean book pages:
 # First find the leaf numbers
-sqlite3 catalog.sqlite "SELECT leaf_num FROM page_numbers WHERE CAST(book_page_number AS INTEGER) BETWEEN 100 AND 110"
+sqlite3 index.sqlite "SELECT leaf_num FROM page_numbers WHERE CAST(book_page_number AS INTEGER) BETWEEN 100 AND 110"
 ```
 
 ### "Go to the chapter on Nerves"
 ```bash
 # Check TOC
-ia-utils get-text -c catalog.sqlite -l 2-5
+ia-utils get-text -i index.sqlite -l 2-5
 # Find page number in TOC output
 # Convert to leaf and navigate
 ```

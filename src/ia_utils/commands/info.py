@@ -1,4 +1,4 @@
-"""Display metadata about catalogs or IA items."""
+"""Display metadata about indexes or IA items."""
 
 import sys
 from pathlib import Path
@@ -8,13 +8,13 @@ import click
 import sqlite_utils
 
 from ia_utils.core import ia_client
-from ia_utils.core.database import get_document_metadata, get_catalog_metadata
+from ia_utils.core.database import get_document_metadata, get_index_metadata
 from ia_utils.utils.output import determine_format, write_output
 from ia_utils.utils.pages import extract_ia_id
 
 
-# Default fields for catalog info (uses official IA field names)
-CATALOG_DEFAULT_FIELDS = [
+# Default fields for index info (uses official IA field names)
+INDEX_DEFAULT_FIELDS = [
     'filename',
     'identifier',
     'title',
@@ -54,39 +54,39 @@ IA_DEFAULT_FIELDS = [
 ]
 
 
-def get_catalog_info(catalog_path: Path) -> Dict[str, Any]:
-    """Extract metadata from a catalog database.
+def get_index_info(index_path: Path) -> Dict[str, Any]:
+    """Extract metadata from an index database.
 
     Args:
-        catalog_path: Path to the SQLite catalog file
+        index_path: Path to the SQLite index file
 
     Returns:
-        Dictionary with catalog metadata (all fields from DB plus computed fields)
+        Dictionary with index metadata (all fields from DB plus computed fields)
     """
     try:
-        db = sqlite_utils.Database(catalog_path)
+        db = sqlite_utils.Database(index_path)
 
         # Get document metadata (key-value table)
         doc_metadata = get_document_metadata(db)
         if not doc_metadata:
-            return {'filename': catalog_path.name, 'error': 'No metadata found'}
+            return {'filename': index_path.name, 'error': 'No metadata found'}
 
         # Start with document metadata
         result = dict(doc_metadata)
 
-        # Add catalog metadata
-        cat_metadata = get_catalog_metadata(db)
-        result.update(cat_metadata)
+        # Add index metadata
+        idx_metadata = get_index_metadata(db)
+        result.update(idx_metadata)
 
         # Add computed fields
-        result['filename'] = catalog_path.name
-        result['path'] = str(catalog_path)
+        result['filename'] = index_path.name
+        result['path'] = str(index_path)
         result['block_count'] = db['text_blocks'].count if 'text_blocks' in db.table_names() else 0
-        result['size_mb'] = round(catalog_path.stat().st_size / 1024 / 1024, 2)
+        result['size_mb'] = round(index_path.stat().st_size / 1024 / 1024, 2)
 
         return result
     except Exception as e:
-        return {'filename': catalog_path.name, 'error': str(e)}
+        return {'filename': index_path.name, 'error': str(e)}
 
 
 def get_ia_info(ia_id: str) -> Dict[str, Any]:
@@ -117,8 +117,8 @@ def get_ia_info(ia_id: str) -> Dict[str, Any]:
         return {'identifier': ia_id, 'error': str(e)}
 
 
-def is_catalog_file(path_str: str) -> bool:
-    """Check if the argument is a catalog file."""
+def is_index_file(path_str: str) -> bool:
+    """Check if the argument is an index file."""
     if not path_str:
         return False
     path = Path(path_str)
@@ -127,8 +127,8 @@ def is_catalog_file(path_str: str) -> bool:
 
 @click.command('info')
 @click.argument('identifier', required=False)
-@click.option('-c', '--catalog', type=click.Path(exists=True),
-              help='Catalog database path.')
+@click.option('-i', '--index', type=click.Path(exists=True),
+              help='Index database path.')
 @click.option('-f', '--field', 'fields', multiple=True,
               help='Fields to show (repeatable). Use "*" for all fields.')
 @click.option('-o', '--output', type=click.Path(dir_okay=False),
@@ -137,13 +137,13 @@ def is_catalog_file(path_str: str) -> bool:
               type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']),
               help='Output format.')
 @click.pass_context
-def info(ctx, identifier, catalog, fields, output, output_format):
-    """Display metadata about a catalog or IA item.
+def info(ctx, identifier, index, fields, output, output_format):
+    """Display metadata about an index or IA item.
 
-    IDENTIFIER: IA identifier, URL, or path to .sqlite catalog.
-    Auto-detects catalogs by .sqlite extension.
+    IDENTIFIER: IA identifier, URL, or path to .sqlite index.
+    Auto-detects indexes by .sqlite extension.
 
-    CATALOG INFO (local .sqlite file):
+    INDEX INFO (local .sqlite file):
 
     \b
     Default fields:
@@ -164,9 +164,9 @@ def info(ctx, identifier, catalog, fields, output, output_format):
     EXAMPLES:
 
     \b
-    # Catalog info
+    # Index info
     ia-utils info book.sqlite
-    ia-utils info -c book.sqlite
+    ia-utils info -i book.sqlite
     # IA item info
     ia-utils info anatomicalatlasi00smit
     ia-utils info https://archive.org/details/anatomicalatlasi00smit
@@ -175,34 +175,34 @@ def info(ctx, identifier, catalog, fields, output, output_format):
     # All fields as JSON
     ia-utils info anatomicalatlasi00smit -f '*' --output-format json
     """
-    # Determine mode: catalog or IA identifier
-    is_catalog = False
+    # Determine mode: index or IA identifier
+    is_index = False
     target = None
 
-    if catalog:
-        # Explicit -c flag
-        is_catalog = True
-        target = catalog
+    if index:
+        # Explicit -i flag
+        is_index = True
+        target = index
         if identifier:
-            click.echo("Error: Cannot specify both IDENTIFIER and -c/--catalog", err=True)
+            click.echo("Error: Cannot specify both IDENTIFIER and -i/--index", err=True)
             sys.exit(1)
     elif identifier:
-        # Check if it's a catalog file
-        if is_catalog_file(identifier):
-            is_catalog = True
+        # Check if it's an index file
+        if is_index_file(identifier):
+            is_index = True
             target = identifier
         else:
             # Treat as IA identifier
-            is_catalog = False
+            is_index = False
             target = extract_ia_id(identifier)
     else:
-        click.echo("Error: Provide an IDENTIFIER or use -c/--catalog", err=True)
+        click.echo("Error: Provide an IDENTIFIER or use -i/--index", err=True)
         sys.exit(1)
 
     # Get info
-    if is_catalog:
-        result = get_catalog_info(Path(target))
-        default_fields = CATALOG_DEFAULT_FIELDS
+    if is_index:
+        result = get_index_info(Path(target))
+        default_fields = INDEX_DEFAULT_FIELDS
     else:
         result = get_ia_info(target)
         default_fields = IA_DEFAULT_FIELDS

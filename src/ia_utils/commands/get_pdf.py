@@ -6,26 +6,26 @@ import click
 import sqlite_utils
 
 from ia_utils.core import ia_client
-from ia_utils.core.database import get_document_metadata, get_catalog_metadata
+from ia_utils.core.database import get_document_metadata, get_index_metadata
 from ia_utils.utils.logger import Logger
 from ia_utils.utils.pages import extract_ia_id
 
 
 @click.command()
 @click.argument('identifier', required=False)
-@click.option('-c', '--catalog', type=click.Path(exists=True), help='Load IA ID from catalog database')
+@click.option('-i', '--index', type=click.Path(exists=True), help='Load IA ID from index database')
 @click.option('-d', '--dir', 'output_dir', type=click.Path(file_okay=False), help='Output directory')
 @click.option('-o', '--output', type=str, help='Override output filename')
 @click.pass_context
-def get_pdf(ctx, identifier, catalog, output_dir, output):
+def get_pdf(ctx, identifier, index, output_dir, output):
     """Download PDF from Internet Archive document.
 
     IDENTIFIER:
-    IA ID or full URL. Can be omitted if using -c/--catalog.
+    IA ID or full URL. Can be omitted if using -i/--index.
 
     OUTPUT:
-    With -c/--catalog: defaults to {slug}.pdf (human-readable name from catalog)
-    Without catalog: defaults to {ia_id}.pdf
+    With -i/--index: defaults to {slug}.pdf (human-readable name from index)
+    Without index: defaults to {ia_id}.pdf
     Use -o to override filename, -d to specify directory.
 
     EXAMPLES:
@@ -33,41 +33,41 @@ def get_pdf(ctx, identifier, catalog, output_dir, output):
     \b
     # Download by ID (saves as {ia_id}.pdf)
     ia-utils get-pdf anatomicalatlasi00smit
-    # Download using catalog (saves as {slug}.pdf)
-    ia-utils get-pdf -c catalog.sqlite
+    # Download using index (saves as {slug}.pdf)
+    ia-utils get-pdf -i index.sqlite
     # Custom filename
-    ia-utils get-pdf -c catalog.sqlite -o anatomy.pdf
+    ia-utils get-pdf -i index.sqlite -o anatomy.pdf
     # Save to specific directory
-    ia-utils get-pdf -c catalog.sqlite -d ./pdfs/
+    ia-utils get-pdf -i index.sqlite -d ./pdfs/
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
 
-    # Determine IA ID from either identifier arg or catalog database
-    if catalog:
+    # Determine IA ID from either identifier arg or index database
+    if index:
         if identifier:
-            logger.error("Cannot specify both IDENTIFIER and -c/--catalog")
+            logger.error("Cannot specify both IDENTIFIER and -i/--index")
             sys.exit(1)
 
-        # Load IA ID from catalog database
+        # Load IA ID from index database
         if verbose:
-            logger.info(f"Loading catalog: {catalog}")
+            logger.info(f"Loading index: {index}")
 
         try:
-            db = sqlite_utils.Database(catalog)
+            db = sqlite_utils.Database(index)
             doc_metadata = get_document_metadata(db)
-            cat_metadata = get_catalog_metadata(db)
+            idx_metadata = get_index_metadata(db)
             if not doc_metadata:
-                logger.error("No metadata found in catalog database")
+                logger.error("No metadata found in index database")
                 sys.exit(1)
             ia_id = doc_metadata['identifier']
-            slug = cat_metadata.get('slug', '')
+            slug = idx_metadata.get('slug', '')
         except Exception as e:
-            logger.error(f"Failed to read catalog database: {e}")
+            logger.error(f"Failed to read index database: {e}")
             sys.exit(1)
     else:
         if not identifier:
-            logger.error("Must provide either IDENTIFIER or -c/--catalog")
+            logger.error("Must provide either IDENTIFIER or -i/--index")
             sys.exit(1)
 
         ia_id = extract_ia_id(identifier)
@@ -91,7 +91,7 @@ def get_pdf(ctx, identifier, catalog, output_dir, output):
     if output:
         output_filename = output if output.endswith('.pdf') else f"{output}.pdf"
     elif slug:
-        # Use slug from catalog (human-readable)
+        # Use slug from index (human-readable)
         output_filename = f"{slug}.pdf"
     else:
         # Fallback to IA ID

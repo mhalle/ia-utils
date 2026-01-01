@@ -1,6 +1,6 @@
 # Search Reference
 
-Complete reference for searching Internet Archive metadata and catalog content.
+Complete reference for searching Internet Archive metadata and index content.
 
 ## Internet Archive Search (`search-ia`)
 
@@ -73,7 +73,7 @@ Important collections for medical/scientific texts:
 
 #### By Format
 ```bash
--F "hOCR"       # Has hOCR (best for full catalog)
+-F "hOCR"       # Has hOCR (best for full index)
 -F "DjVu"       # Has DjVu
 -F "PDF"        # Has PDF
 -F "EPUB"       # Has EPUB
@@ -157,13 +157,13 @@ ia-utils search-ia -q "anatomy" --year 1800-1900 -l 100 -o anatomy_books.csv
 
 ---
 
-## Catalog Search (`search-catalog`)
+## Index Search (`search-index`)
 
-Search within a local catalog database built from an IA item.
+Search within a local index database built from an IA item.
 
 ### Basic Syntax
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q "search term"
+ia-utils search-index -i index.sqlite -q "search term"
 ```
 
 ### Query Syntax (FTS5)
@@ -216,10 +216,10 @@ Use `--raw` to pass query directly to FTS5:
 #### Block vs Page Level
 ```bash
 # Page-level search (default) - aggregates blocks per page
-ia-utils search-catalog -c catalog.sqlite -q "term"
+ia-utils search-index -i index.sqlite -q "term"
 
 # Block-level search - finer granularity
-ia-utils search-catalog -c catalog.sqlite -q "term" --blocks
+ia-utils search-index -i index.sqlite -q "term" --blocks
 ```
 
 #### Select Fields
@@ -242,14 +242,14 @@ For complex queries, use SQLite directly:
 
 ```bash
 # Page-level FTS
-sqlite3 catalog.sqlite "
+sqlite3 index.sqlite "
 SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 20)
 FROM pages_fts
 WHERE pages_fts MATCH 'femur NEAR head'
 LIMIT 10"
 
 # Block-level FTS
-sqlite3 catalog.sqlite "
+sqlite3 index.sqlite "
 SELECT page_id, block_number, text
 FROM text_blocks tb
 JOIN text_blocks_fts fts ON tb.rowid = fts.rowid
@@ -257,7 +257,7 @@ WHERE text_blocks_fts MATCH 'femur'
 LIMIT 10"
 
 # With page number mapping
-sqlite3 catalog.sqlite "
+sqlite3 index.sqlite "
 SELECT pn.book_page_number, tb.text
 FROM text_blocks tb
 JOIN page_numbers pn ON tb.page_id = pn.leaf_num
@@ -268,19 +268,19 @@ LIMIT 10"
 ### Examples
 ```bash
 # Find pages about the femur
-ia-utils search-catalog -c catalog.sqlite -q "femur"
+ia-utils search-index -i index.sqlite -q "femur"
 
 # Find exact phrase
-ia-utils search-catalog -c catalog.sqlite -q '"circle of willis"'
+ia-utils search-index -i index.sqlite -q '"circle of willis"'
 
 # Search with exclusion
-ia-utils search-catalog -c catalog.sqlite -q "nerve NOT optic"
+ia-utils search-index -i index.sqlite -q "nerve NOT optic"
 
 # Export to JSON
-ia-utils search-catalog -c catalog.sqlite -q "anatomy" -o results.json --output-format json
+ia-utils search-index -i index.sqlite -q "anatomy" -o results.json --output-format json
 
 # Block-level search for precise location
-ia-utils search-catalog -c catalog.sqlite -q "femur" --blocks -l 20
+ia-utils search-index -i index.sqlite -q "femur" --blocks -l 20
 ```
 
 ## Search Strategy Tips
@@ -288,7 +288,7 @@ ia-utils search-catalog -c catalog.sqlite -q "femur" --blocks -l 20
 ### For LLMs Working with Users
 
 1. **Start with metadata search** (`search-ia`) to find the right book
-2. **Create catalog** for detailed content search
+2. **Create index** for detailed content search
 3. **Use phrase search** for multi-word anatomical terms
 4. **Try prefix search** when spelling is uncertain: `oste*` for osteology terms
 5. **Use NEAR** for related concepts: `nerve NEAR muscle`

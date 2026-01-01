@@ -122,7 +122,7 @@ def get_leaf_num(page_num: int, page_type: str,
             except Exception as e:
                 raise ValueError(f"Could not look up book page '{page_num}': {e}")
         else:
-            raise ValueError("Book page lookup requires either catalog database or IA ID")
+            raise ValueError("Book page lookup requires either index database or IA ID")
 
     else:
         raise ValueError(f"Unknown page_type: {page_type}. Use 'leaf' or 'book'.")

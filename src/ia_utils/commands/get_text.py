@@ -1,4 +1,4 @@
-"""Get OCR text from catalog database."""
+"""Get OCR text from index database."""
 
 import sys
 from pathlib import Path
@@ -90,8 +90,8 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
 
 
 @click.command(name='get-text')
-@click.option('-c', '--catalog', type=click.Path(exists=True), required=True,
-              help='Catalog database path')
+@click.option('-i', '--index', type=click.Path(exists=True), required=True,
+              help='Index database path')
 @click.option('-l', '--leaf', 'leaf_range', required=True,
               help='Leaf number(s): 42, 1-10, 1,3,5, or 1-5,10,15-20')
 @click.option('--blocks', is_flag=True,
@@ -103,11 +103,11 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
 @click.option('--output-format', 'output_format',
               type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']),
               help='Output format')
-def get_text(catalog, leaf_range, blocks, fields, output, output_format):
-    """Get full OCR text from catalog for specified pages.
+def get_text(index, leaf_range, blocks, fields, output, output_format):
+    """Get full OCR text from index for specified pages.
 
-    Retrieves the OCR text stored in the catalog database. Use after
-    search-catalog to get full text of matching pages.
+    Retrieves the OCR text stored in the index database. Use after
+    search-index to get full text of matching pages.
 
     LEAF RANGE:
 
@@ -140,23 +140,23 @@ def get_text(catalog, leaf_range, blocks, fields, output, output_format):
 
     \b
     # Get text for a single page
-    ia-utils get-text -c catalog.sqlite -l 175
+    ia-utils get-text -i index.sqlite -l 175
     # Get text for page range
-    ia-utils get-text -c catalog.sqlite -l 100-110
+    ia-utils get-text -i index.sqlite -l 100-110
     # Get individual blocks with confidence scores
-    ia-utils get-text -c catalog.sqlite -l 175 --blocks
+    ia-utils get-text -i index.sqlite -l 175 --blocks
     # Export to JSON
-    ia-utils get-text -c catalog.sqlite -l 175 --output-format json
+    ia-utils get-text -i index.sqlite -l 175 --output-format json
     # Get just the text field
-    ia-utils get-text -c catalog.sqlite -l 175 -f text
+    ia-utils get-text -i index.sqlite -l 175 -f text
     """
     try:
-        db = sqlite_utils.Database(catalog)
+        db = sqlite_utils.Database(index)
 
         # Get IA ID for URLs
         doc_metadata = get_document_metadata(db)
         if not doc_metadata:
-            click.echo("Error: No metadata found in catalog", err=True)
+            click.echo("Error: No metadata found in index", err=True)
             sys.exit(1)
         ia_id = doc_metadata['identifier']
 

@@ -13,15 +13,15 @@ ia-utils search-ia -q "topic" -m texts --has-ocr -s downloads:desc
 # 2. Check item info
 ia-utils info <identifier>
 
-# 3. Build catalog
-ia-utils create-catalog <identifier> -d ./catalogs/
+# 3. Build index
+ia-utils create-index <identifier> -d ./indexes/
 
-# 4. Search catalog
-ia-utils search-catalog -c catalog.sqlite -q "term"
+# 4. Search index
+ia-utils search-index -i index.sqlite -q "term"
 
 # 5. Get page/URL
-ia-utils get-url -c catalog.sqlite -l <leaf> --viewer
-ia-utils get-page -c catalog.sqlite -l <leaf> -o page.jpg
+ia-utils get-url -i index.sqlite -l <leaf> --viewer
+ia-utils get-page -i index.sqlite -l <leaf> -o page.jpg
 ```
 
 ## Search IA (`search-ia`)
@@ -47,14 +47,14 @@ ia-utils list-files <identifier>           # List original files
 ia-utils list-files <identifier> --all     # Include derivatives (PDF, OCR, etc.)
 ia-utils list-files <identifier> --format-filter PDF
 ia-utils list-files <identifier> --format-filter MP3
-ia-utils list-files -c catalog.sqlite      # From catalog
+ia-utils list-files -i index.sqlite        # From index
 -f name -f url                              # Select fields
 -o files.csv                                # Export
 ```
 
-## Search Catalog (`search-catalog`)
+## Search Index (`search-index`)
 ```bash
--c catalog.sqlite       # Catalog file (required)
+-i index.sqlite         # Index file (required)
 -q "term"               # Search query (required)
 -l 20                   # Limit results
 --blocks                # Block-level (finer) vs page-level (default)
@@ -83,23 +83,23 @@ ia-utils list-files -c catalog.sqlite      # From catalog
 
 ## Get URLs (`get-url`)
 ```bash
-ia-utils get-url -c catalog.sqlite -l 175              # Direct image URL
-ia-utils get-url -c catalog.sqlite -l 175 --viewer     # BookReader URL
-ia-utils get-url -c catalog.sqlite -l 175 --pdf        # PDF with page anchor
-ia-utils get-url -c catalog.sqlite --pdf               # Full PDF URL
---size small|medium|large|original                     # Image size
+ia-utils get-url -i index.sqlite -l 175              # Direct image URL
+ia-utils get-url -i index.sqlite -l 175 --viewer     # BookReader URL
+ia-utils get-url -i index.sqlite -l 175 --pdf        # PDF with page anchor
+ia-utils get-url -i index.sqlite --pdf               # Full PDF URL
+--size small|medium|large|original                   # Image size
 ```
 
 ## Get Pages (`get-page`, `get-pages`)
 ```bash
 # Single page
-ia-utils get-page -c catalog.sqlite -l 175 -o page.jpg
-ia-utils get-page -c catalog.sqlite -b 145 -o page.jpg  # By book page
+ia-utils get-page -i index.sqlite -l 175 -o page.jpg
+ia-utils get-page -i index.sqlite -b 145 -o page.jpg  # By book page
 
 # Multiple pages
-ia-utils get-pages -c catalog.sqlite -l 1-20 -p output/prefix
-ia-utils get-pages -c catalog.sqlite -l 1-20 --zip -o pages.zip
-ia-utils get-pages -c catalog.sqlite --all --zip
+ia-utils get-pages -i index.sqlite -l 1-20 -p output/prefix
+ia-utils get-pages -i index.sqlite -l 1-20 --zip -o pages.zip
+ia-utils get-pages -i index.sqlite --all --zip
 
 # Options
 --size small|medium|large|original
@@ -108,9 +108,9 @@ ia-utils get-pages -c catalog.sqlite --all --zip
 
 ## Get Text (`get-text`)
 ```bash
-ia-utils get-text -c catalog.sqlite -l 175
-ia-utils get-text -c catalog.sqlite -l 100-110
-ia-utils get-text -c catalog.sqlite -l 175 --blocks    # Individual blocks
+ia-utils get-text -i index.sqlite -l 175
+ia-utils get-text -i index.sqlite -l 100-110
+ia-utils get-text -i index.sqlite -l 175 --blocks    # Individual blocks
 --output-format json|csv|table
 ```
 
@@ -145,15 +145,15 @@ SELECT book_page_number FROM page_numbers WHERE leaf_num = 175;
 ## Direct SQL Queries
 ```bash
 # Page-level FTS
-sqlite3 catalog.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 30)
+sqlite3 index.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 30)
   FROM pages_fts WHERE pages_fts MATCH 'term' LIMIT 10"
 
 # Find unnumbered pages (plates)
-sqlite3 catalog.sqlite "SELECT leaf_num FROM page_numbers
+sqlite3 index.sqlite "SELECT leaf_num FROM page_numbers
   WHERE book_page_number IS NULL ORDER BY leaf_num"
 
 # OCR confidence (hOCR only)
-sqlite3 catalog.sqlite "SELECT AVG(avg_confidence) FROM text_blocks"
+sqlite3 index.sqlite "SELECT AVG(avg_confidence) FROM text_blocks"
 ```
 
 ## Key Tables
@@ -164,7 +164,7 @@ sqlite3 catalog.sqlite "SELECT AVG(avg_confidence) FROM text_blocks"
 | `pages_fts` | Page-level full-text search |
 | `text_blocks_fts` | Block-level full-text search |
 | `document_metadata` | IA metadata |
-| `catalog_metadata` | Catalog info (mode, date) |
+| `index_metadata` | Index info (mode, date) |
 
 ## Rights Check
 Always check before recommending:
@@ -182,19 +182,19 @@ ia-utils search-ia -q "title" --creator "author" -m texts --has-ocr -s downloads
 
 **Find the index:**
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q "index" -l 5
+ia-utils search-index -i index.sqlite -q "index" -l 5
 # Then get text from high leaf numbers
 ```
 
 **Find a figure:**
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q '"Fig. 123"'
+ia-utils search-index -i index.sqlite -q '"Fig. 123"'
 # Download surrounding pages to locate actual image
 ```
 
 **Check OCR quality quickly:**
 ```bash
-ia-utils search-catalog -c catalog.sqlite -q "common word" -l 3
+ia-utils search-index -i index.sqlite -q "common word" -l 3
 # If snippets are garbled, OCR is poor
 ```
 

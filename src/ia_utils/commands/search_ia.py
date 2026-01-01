@@ -1,4 +1,4 @@
-"""Search Internet Archive catalog and display results."""
+"""Search Internet Archive and display results."""
 
 from __future__ import annotations
 

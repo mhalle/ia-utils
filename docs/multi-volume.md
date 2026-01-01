@@ -72,24 +72,24 @@ ia-utils info handatlashumananatomy1923v1 -f description
 
 ## Working with Individual Volumes
 
-### Create Separate Catalogs
-Each volume needs its own catalog:
+### Create Separate Indexes
+Each volume needs its own index:
 
 ```bash
-# Create catalogs for each volume
-ia-utils create-catalog handatlashumananatomy1923v1 -d ./catalogs/
-ia-utils create-catalog handatlashumananatomy1923v2 -d ./catalogs/
-ia-utils create-catalog handatlashumananatomy1923v3 -d ./catalogs/
+# Create indexes for each volume
+ia-utils create-index handatlashumananatomy1923v1 -d ./indexes/
+ia-utils create-index handatlashumananatomy1923v2 -d ./indexes/
+ia-utils create-index handatlashumananatomy1923v3 -d ./indexes/
 ```
 
 ### Search Across Volumes
-Search each catalog and combine results:
+Search each index and combine results:
 
 ```bash
 # Search all volumes for a term
-for vol in ./catalogs/handatlas*v*.sqlite; do
+for vol in ./indexes/handatlas*v*.sqlite; do
   echo "=== $(basename $vol) ==="
-  ia-utils search-catalog -c "$vol" -q "nerve" -l 5
+  ia-utils search-index -i "$vol" -q "nerve" -l 5
 done
 ```
 
@@ -98,10 +98,10 @@ Check the table of contents or index in volume 1 to find which volume contains y
 
 ```bash
 # Get TOC from volume 1
-ia-utils get-text -c ./catalogs/work_v1.sqlite -l 2-10
+ia-utils get-text -i ./indexes/work_v1.sqlite -l 2-10
 
 # Check index if present
-ia-utils search-catalog -c ./catalogs/work_v1.sqlite -q "index"
+ia-utils search-index -i ./indexes/work_v1.sqlite -q "index"
 ```
 
 ## Bound vs Unbound Editions
@@ -139,10 +139,10 @@ Historical texts often reference content in other volumes. When you encounter:
 ### Resolving Cross-References
 1. **Identify the target volume** from the reference
 2. **Find the corresponding IA item** using search
-3. **Create catalog if needed** for that volume
+3. **Create index if needed** for that volume
 4. **Navigate to the page** using book page number:
    ```bash
-   ia-utils get-url -c volume2.sqlite -b 234 --viewer
+   ia-utils get-url -i volume2.sqlite -b 234 --viewer
    ```
 
 ## Example: Complete Workflow
@@ -159,21 +159,21 @@ ia-utils search-ia -q "Spalteholz hand atlas anatomy" -m texts --has-ocr \
 # Also found: b31362138 (all volumes bound together)
 
 # 3. For efficiency, use the bound edition
-ia-utils create-catalog b31362138 -d ./catalogs/
+ia-utils create-index b31362138 -d ./indexes/
 
 # 4. Search for femur
-ia-utils search-catalog -c ./catalogs/spalteholz*.sqlite -q "femur"
+ia-utils search-index -i ./indexes/spalteholz*.sqlite -q "femur"
 
 # If using separate volumes:
-# 3a. Create catalogs for each
+# 3a. Create indexes for each
 for v in 1 2 3; do
-  ia-utils create-catalog handatlashumananatomy1923v$v -d ./catalogs/
+  ia-utils create-index handatlashumananatomy1923v$v -d ./indexes/
 done
 
 # 4a. Search each volume
-for cat in ./catalogs/hand-atlas*v*.sqlite; do
-  echo "=== $cat ==="
-  ia-utils search-catalog -c "$cat" -q "femur" -l 3
+for idx in ./indexes/hand-atlas*v*.sqlite; do
+  echo "=== $idx ==="
+  ia-utils search-index -i "$idx" -q "femur" -l 3
 done
 ```
 

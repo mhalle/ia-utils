@@ -25,7 +25,7 @@ class TextBlock:
     parent_carea_id: Optional[str]
 
 
-# NOTE: Catalog metadata uses official IA field names with dynamic columns.
+# NOTE: Index metadata uses official IA field names with dynamic columns.
 # All fields from the IA item metadata are stored directly.
 # Multi-value fields are joined with "; " separator.
 # Common fields include:

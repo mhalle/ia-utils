@@ -1,4 +1,4 @@
-"""Search catalog database using FTS."""
+"""Search index database using FTS."""
 
 import re
 import sys
@@ -162,9 +162,9 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
     return results
 
 
-@click.command(name='search-catalog')
-@click.option('-c', '--catalog', type=click.Path(exists=True), required=True,
-              help='Catalog database path')
+@click.command(name='search-index')
+@click.option('-i', '--index', type=click.Path(exists=True), required=True,
+              help='Index database path')
 @click.option('-q', '--query', required=True, help='Search query (FTS5 syntax)')
 @click.option('-l', '--limit', type=int, default=20, show_default=True,
               help='Maximum results')
@@ -177,8 +177,8 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
 @click.option('--output-format', 'output_format',
               type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']),
               help='Output format')
-def search_catalog(catalog, query, limit, blocks, raw, fields, output, output_format):
-    """Search catalog database using FTS on OCR text.
+def search_index(index, query, limit, blocks, raw, fields, output, output_format):
+    """Search index database using FTS on OCR text.
 
     Searches the full-text index built from OCR content. By default searches
     at page level; use --blocks for finer granularity.
@@ -226,28 +226,28 @@ def search_catalog(catalog, query, limit, blocks, raw, fields, output, output_fo
 
     \b
     Example:
-      sqlite3 catalog.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 20)
+      sqlite3 index.sqlite "SELECT page_id, snippet(pages_fts, 0, '>', '<', '...', 20)
         FROM pages_fts WHERE pages_fts MATCH 'femur NEAR head' LIMIT 10"
 
     EXAMPLES:
 
     \b
     # Simple search
-    ia-utils search-catalog -c catalog.sqlite -q "femur"
+    ia-utils search-index -i index.sqlite -q "femur"
     # Phrase search
-    ia-utils search-catalog -c catalog.sqlite -q '"circle of willis"'
+    ia-utils search-index -i index.sqlite -q '"circle of willis"'
     # Export to JSON
-    ia-utils search-catalog -c catalog.sqlite -q "anatomy" --output-format json
+    ia-utils search-index -i index.sqlite -q "anatomy" --output-format json
     # Block-level search
-    ia-utils search-catalog -c catalog.sqlite -q "nerve" --blocks
+    ia-utils search-index -i index.sqlite -q "nerve" --blocks
     """
     try:
-        db = sqlite_utils.Database(catalog)
+        db = sqlite_utils.Database(index)
 
         # Get IA ID for URLs
         doc_metadata = get_document_metadata(db)
         if not doc_metadata:
-            click.echo("Error: No metadata found in catalog", err=True)
+            click.echo("Error: No metadata found in index", err=True)
             sys.exit(1)
         ia_id = doc_metadata['identifier']
 

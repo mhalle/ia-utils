@@ -12,8 +12,8 @@ from ia_utils.utils.output import write_output, determine_format
 
 
 @click.command('get-page-stats')
-@click.option('-c', '--catalog', type=click.Path(exists=True), required=True,
-              help='Catalog database path')
+@click.option('-i', '--index', type=click.Path(exists=True), required=True,
+              help='Index database path')
 @click.option('-l', '--leaf', type=str, help='Leaf range (e.g., 1-7,21,25)')
 @click.option('-b', '--book', type=str, help='Book page range (e.g., 100-150)')
 @click.option('--output-format', 'output_format',
@@ -22,8 +22,8 @@ from ia_utils.utils.output import write_output, determine_format
 @click.option('-o', '--output', type=click.Path(),
               help='Output file path')
 @click.pass_context
-def get_page_stats(ctx, catalog, leaf, book, output_format, output):
-    """Get per-page statistics from a catalog.
+def get_page_stats(ctx, index, leaf, book, output_format, output):
+    """Get per-page statistics from an index.
 
     Returns statistics for each page including block count, line count,
     word count, and non-whitespace character count. Useful for identifying
@@ -34,7 +34,7 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
     \b
     -l/--leaf     Leaf range (e.g., 1-7,21,25)
     -b/--book     Book page range (e.g., 100-150)
-    (omit both)   All pages in catalog
+    (omit both)   All pages in index
 
     OUTPUT FIELDS:
 
@@ -45,13 +45,13 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
     line_count    Total lines across blocks
     word_count    Word count (whitespace-separated)
     length        Non-whitespace character count
-    avg_confidence  Average OCR confidence (hOCR/djvu catalogs only)
+    avg_confidence  Average OCR confidence (hOCR/djvu indexes only)
 
     Examples:
-        ia-utils get-page-stats -c catalog.sqlite
-        ia-utils get-page-stats -c catalog.sqlite -l 100-150
-        ia-utils get-page-stats -c catalog.sqlite --output-format json
-        ia-utils get-page-stats -c catalog.sqlite -o stats.csv
+        ia-utils get-page-stats -i index.sqlite
+        ia-utils get-page-stats -i index.sqlite -l 100-150
+        ia-utils get-page-stats -i index.sqlite --output-format json
+        ia-utils get-page-stats -i index.sqlite -o stats.csv
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -61,18 +61,18 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
         logger.error("Cannot specify both --leaf and --book")
         sys.exit(1)
 
-    # Load catalog
+    # Load index
     try:
-        db = sqlite_utils.Database(catalog)
+        db = sqlite_utils.Database(index)
         doc_metadata = get_document_metadata(db)
         if not doc_metadata:
-            logger.error("No metadata found in catalog database")
+            logger.error("No metadata found in index database")
             sys.exit(1)
     except Exception as e:
-        logger.error(f"Failed to read catalog database: {e}")
+        logger.error(f"Failed to read index database: {e}")
         sys.exit(1)
 
-    # Get all page IDs from catalog
+    # Get all page IDs from index
     try:
         all_pages = [row[0] for row in db.execute(
             "SELECT DISTINCT page_id FROM text_blocks ORDER BY page_id"
@@ -82,7 +82,7 @@ def get_page_stats(ctx, catalog, leaf, book, output_format, output):
         sys.exit(1)
 
     if not all_pages:
-        logger.error("No pages found in catalog")
+        logger.error("No pages found in index")
         sys.exit(1)
 
     # Determine which pages to include

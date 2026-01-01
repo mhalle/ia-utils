@@ -3,7 +3,7 @@
 import click
 
 from ia_utils import __version__
-from ia_utils.commands.create_catalog import create_catalog
+from ia_utils.commands.create_index import create_index
 from ia_utils.commands.info import info
 from ia_utils.commands.get_page import get_page
 from ia_utils.commands.get_pages import get_pages
@@ -12,9 +12,9 @@ from ia_utils.commands.get_pdf import get_pdf
 from ia_utils.commands.get_text import get_text
 from ia_utils.commands.get_url import get_url
 from ia_utils.commands.list_files import list_files
-from ia_utils.commands.search_catalog import search_catalog
+from ia_utils.commands.search_index import search_index
 from ia_utils.commands.search_ia import search_ia
-from ia_utils.commands.rebuild_catalog import rebuild_catalog
+from ia_utils.commands.rebuild_index import rebuild_index
 
 
 @click.group()
@@ -29,31 +29,31 @@ def cli(ctx, verbose):
     \b
     1. DISCOVER: Search Internet Archive for books/documents
        ia-utils search-ia -q "anatomy atlas" --year 1900-1940 -m texts
-    2. CREATE CATALOG: Build searchable database from a document
-       ia-utils create-catalog <ia_id> -d ./catalogs/
-    3. SEARCH CATALOG: Find pages by OCR text content
-       ia-utils search-catalog -c catalog.sqlite -q "femur"
+    2. CREATE INDEX: Build searchable database from a document
+       ia-utils create-index <ia_id> -d ./indexes/
+    3. SEARCH INDEX: Find pages by OCR text content
+       ia-utils search-index -i index.sqlite -q "femur"
     4. DOWNLOAD: Get pages, PDFs, or URLs
-       ia-utils get-page -c catalog.sqlite -l 42
-       ia-utils get-pdf -c catalog.sqlite
-       ia-utils get-url -c catalog.sqlite -l 42 --viewer
+       ia-utils get-page -i index.sqlite -l 42
+       ia-utils get-pdf -i index.sqlite
+       ia-utils get-url -i index.sqlite -l 42 --viewer
 
     COMMAND GROUPS:
 
     \b
     Discovery:
       search-ia        Search IA metadata (by title, creator, year, etc.)
-      info             Show metadata about catalog or IA item
+      info             Show metadata about index or IA item
       list-files       List files in an IA item with download URLs
-    Catalog Management:
-      create-catalog   Build catalog database from IA document
-      rebuild-catalog  Rebuild catalog's text/FTS indexes
-      search-catalog   Search catalog by OCR text content
+    Index Management:
+      create-index     Build index database from IA document
+      rebuild-index    Rebuild index's text/FTS indexes
+      search-index     Search index by OCR text content
     Downloading:
       get-page         Download single page image
       get-pages        Download page images (range, --all, --zip)
       get-pdf          Download PDF
-      get-text         Get OCR text from catalog
+      get-text         Get OCR text from index
       get-url          Get URL without downloading
 
     IDENTIFIERS:
@@ -62,7 +62,7 @@ def cli(ctx, verbose):
     Most commands accept IA identifiers in multiple forms:
       - ID: anatomicalatlasi00smit
       - URL: https://archive.org/details/anatomicalatlasi00smit
-      - Catalog: -c catalog.sqlite (reads ID from database)
+      - Index: -i index.sqlite (reads ID from database)
 
     Use -v/--verbose for detailed progress output.
     """
@@ -71,7 +71,7 @@ def cli(ctx, verbose):
 
 
 # Register commands
-cli.add_command(create_catalog)
+cli.add_command(create_index)
 cli.add_command(get_page)
 cli.add_command(get_pages)
 cli.add_command(get_page_stats)
@@ -80,8 +80,8 @@ cli.add_command(get_text)
 cli.add_command(get_url)
 cli.add_command(info)
 cli.add_command(list_files)
-cli.add_command(rebuild_catalog)
-cli.add_command(search_catalog)
+cli.add_command(rebuild_index)
+cli.add_command(search_index)
 cli.add_command(search_ia)
 
 

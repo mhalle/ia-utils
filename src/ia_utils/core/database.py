@@ -1,4 +1,4 @@
-"""SQLite database operations for catalogs."""
+"""SQLite database operations for indexes."""
 
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Literal
@@ -7,8 +7,8 @@ import sqlite_utils
 
 from ia_utils.utils.logger import Logger
 
-# Type for catalog mode
-CatalogMode = Literal['searchtext', 'mixed', 'hocr', 'djvu']
+# Type for index mode
+IndexMode = Literal['searchtext', 'mixed', 'hocr', 'djvu']
 
 
 def get_document_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
@@ -64,11 +64,11 @@ def get_document_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
         return {}
 
 
-def get_catalog_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
-    """Read catalog_metadata key-value table as a dict."""
-    if 'catalog_metadata' not in db.table_names():
+def get_index_metadata(db: sqlite_utils.Database) -> Dict[str, str]:
+    """Read index_metadata key-value table as a dict."""
+    if 'index_metadata' not in db.table_names():
         return {}
-    return {row['key']: row['value'] for row in db['catalog_metadata'].rows}
+    return {row['key']: row['value'] for row in db['index_metadata'].rows}
 
 
 def build_fts_indexes(db: sqlite_utils.Database) -> None:
@@ -140,23 +140,23 @@ def build_fts_indexes(db: sqlite_utils.Database) -> None:
     """)
 
 
-def create_catalog_database(output_path: Path, ia_id: str, slug: str,
+def create_index_database(output_path: Path, ia_id: str, slug: str,
                            metadata: List[tuple], files: List[Dict],
                            blocks: List[Dict], page_numbers: Optional[Dict] = None,
-                           catalog_mode: CatalogMode = 'hocr',
+                           index_mode: IndexMode = 'hocr',
                            pages: Optional[List[Dict]] = None,
                            logger: Optional[Logger] = None) -> Path:
-    """Create a new catalog database with all tables and indexes.
+    """Create a new index database with all tables and indexes.
 
     Args:
         output_path: Path to write SQLite database
         ia_id: Internet Archive identifier
-        slug: Human-readable slug for catalog
+        slug: Human-readable slug for index
         metadata: Document metadata as list of (key, value) tuples
         files: List of archive files
         blocks: List of text blocks from hOCR or searchtext
         page_numbers: Optional page number mappings
-        catalog_mode: 'searchtext', 'mixed', or 'hocr'
+        index_mode: 'searchtext', 'mixed', or 'hocr'
         pages: Optional page offset info for enrichment (searchtext mode)
         logger: Optional logger instance
 
@@ -173,18 +173,18 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
 
     # Drop existing tables for clean recreation
     for table in ['text_blocks_fts', 'pages_fts', 'text_blocks', 'pages',
-                  'page_numbers', 'archive_files', 'document_metadata', 'catalog_metadata']:
+                  'page_numbers', 'archive_files', 'document_metadata', 'index_metadata']:
         db[table].drop(ignore=True)
 
-    # === TABLE 1: CATALOG METADATA (our computed fields) ===
-    logger.progress("     Creating catalog_metadata...", nl=False)
+    # === TABLE 1: INDEX METADATA (our computed fields) ===
+    logger.progress("     Creating index_metadata...", nl=False)
 
-    catalog_records = [
+    index_records = [
         {'key': 'slug', 'value': slug},
         {'key': 'created_at', 'value': datetime.now().isoformat()},
-        {'key': 'catalog_mode', 'value': catalog_mode},
+        {'key': 'index_mode', 'value': index_mode},
     ]
-    db['catalog_metadata'].insert_all(catalog_records, pk='key', replace=True)
+    db['index_metadata'].insert_all(index_records, pk='key', replace=True)
     logger.progress_done("✓")
 
     # === TABLE 2: DOCUMENT METADATA (from IA) ===
@@ -226,7 +226,7 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
     logger.progress("     Creating text_blocks...", nl=False)
 
     # For searchtext mode, blocks don't have hocr_id, use composite key
-    if catalog_mode == 'searchtext':
+    if index_mode == 'searchtext':
         db['text_blocks'].insert_all(blocks, pk=['page_id', 'block_number'], replace=True)
     else:
         db['text_blocks'].insert_all(blocks, pk='hocr_id', replace=True)
@@ -263,7 +263,7 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
     logger.progress("     Creating indexes...", nl=False)
 
     db.executescript("CREATE INDEX IF NOT EXISTS idx_page ON text_blocks(page_id);")
-    if catalog_mode != 'searchtext':
+    if index_mode != 'searchtext':
         # These columns only exist in hocr/mixed mode
         db.executescript("""
             CREATE INDEX IF NOT EXISTS idx_block_type ON text_blocks(block_type);
@@ -288,13 +288,13 @@ def create_catalog_database(output_path: Path, ia_id: str, slug: str,
     size_mb = output_path.stat().st_size / 1024 / 1024
 
     logger.info(f"\n   Database: {output_path.name}")
-    logger.info(f"   Mode: {catalog_mode}")
+    logger.info(f"   Mode: {index_mode}")
     logger.info(f"   Size: {size_mb:.1f} MB")
     logger.info(f"   Records: {blocks_count} text blocks across {pages_count} pages")
     logger.info(f"   Average block length: {avg_length:.1f} chars" if avg_length else "   Average block length: N/A")
 
     # Only show hocr-specific stats if available
-    if catalog_mode != 'searchtext':
+    if index_mode != 'searchtext':
         avg_conf_result = db.execute('SELECT AVG(avg_confidence) FROM text_blocks').fetchone()[0]
         avg_conf = avg_conf_result if avg_conf_result else 0
         logger.info(f"   OCR Quality: {avg_conf:.0f}% average confidence")

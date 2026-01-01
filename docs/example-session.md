@@ -13,25 +13,25 @@ This document shows a complete example session exploring a medical anatomy atlas
 
 ```bash
 # Create working directory
-mkdir -p catalogs
+mkdir -p indexes
 
-# Create catalog (takes ~30 seconds)
+# Create index (takes ~30 seconds)
 uv run --with git+https://github.com/mhalle/ia-utils.git \
-  ia-utils create-catalog b31362138 -d ./catalogs/
+  ia-utils create-index b31362138 -d ./indexes/
 ```
 
 Output:
 ```
-Building catalog for: b31362138 [fast (searchtext)]
+Building index for: b31362138 [fast (searchtext)]
 ...
-✓ Database created: catalogs/spalteholz-hand-atlas-human-anatomy-1933_b31362138.sqlite
+✓ Database created: indexes/spalteholz-hand-atlas-human-anatomy-1933_b31362138.sqlite
 ```
 
 ## Exploring the Book
 
 ### Check Book Info
 ```bash
-ia-utils info catalogs/spalteholz-hand-atlas-human-anatomy-1933_b31362138.sqlite
+ia-utils info indexes/spalteholz-hand-atlas-human-anatomy-1933_b31362138.sqlite
 ```
 
 Output:
@@ -48,7 +48,7 @@ ocr: ABBYY FineReader 11.0 (Extended OCR)
 
 ### Find the Table of Contents
 ```bash
-ia-utils get-text -c catalogs/spalteholz*.sqlite -l 2-3
+ia-utils get-text -i indexes/spalteholz*.sqlite -l 2-3
 ```
 
 Output shows the complete TOC with page references:
@@ -59,7 +59,7 @@ Output shows the complete TOC with page references:
 
 ### Search for Femur Content
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "femur" -l 5
+ia-utils search-index -i indexes/spalteholz*.sqlite -q "femur" -l 5
 ```
 
 Output:
@@ -78,16 +78,16 @@ url: https://archive.org/details/b31362138/page/leaf251
 ### View a Page
 ```bash
 # Get viewer URL for user
-ia-utils get-url -c catalogs/spalteholz*.sqlite -l 175 --viewer
+ia-utils get-url -i indexes/spalteholz*.sqlite -l 175 --viewer
 # Output: https://archive.org/details/b31362138/page/leaf175
 
 # Download to view directly
-ia-utils get-page -c catalogs/spalteholz*.sqlite -l 175 -o femur-page.jpg
+ia-utils get-page -i indexes/spalteholz*.sqlite -l 175 -o femur-page.jpg
 ```
 
 ### Find the Circle of Willis
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q '"circle of willis"'
+ia-utils search-index -i indexes/spalteholz*.sqlite -q '"circle of willis"'
 ```
 
 Output:
@@ -101,7 +101,7 @@ snippet: ...arises the circulus arteriosus [Willisi] (O. T. →circle of Willis�
 ### Access the Index
 ```bash
 # The index starts at leaf 937 (page 869)
-ia-utils get-text -c catalogs/spalteholz*.sqlite -l 937
+ia-utils get-text -i indexes/spalteholz*.sqlite -l 937
 ```
 
 Output shows alphabetized index entries with page references.
@@ -110,22 +110,22 @@ Output shows alphabetized index entries with page references.
 
 ### Map Book Page to Leaf
 ```bash
-sqlite3 catalogs/spalteholz*.sqlite \
+sqlite3 indexes/spalteholz*.sqlite \
   "SELECT leaf_num FROM page_numbers WHERE book_page_number = '145'"
 # Output: 175
 ```
 
 ### Find OCR Statistics
 ```bash
-# For the hOCR catalog
-sqlite3 catalogs/spalteholz-hocr.sqlite \
+# For the hOCR index
+sqlite3 indexes/spalteholz-hocr.sqlite \
   "SELECT AVG(avg_confidence), MIN(avg_confidence), MAX(avg_confidence) FROM text_blocks WHERE avg_confidence IS NOT NULL"
 # Output: 54.44|0.0|100.0
 ```
 
 ### Get Page Text with FTS Highlighting
 ```bash
-sqlite3 catalogs/spalteholz*.sqlite \
+sqlite3 indexes/spalteholz*.sqlite \
   "SELECT page_id, snippet(pages_fts, 0, '→', '←', '...', 30) FROM pages_fts WHERE pages_fts MATCH 'nerve NEAR muscle' LIMIT 5"
 ```
 
@@ -134,15 +134,15 @@ sqlite3 catalogs/spalteholz*.sqlite \
 ### Get a Range of Pages
 ```bash
 # As individual files
-ia-utils get-pages -c catalogs/spalteholz*.sqlite -l 100-110 -p output/anatomy
+ia-utils get-pages -i indexes/spalteholz*.sqlite -l 100-110 -p output/anatomy
 
 # As ZIP
-ia-utils get-pages -c catalogs/spalteholz*.sqlite -l 100-110 --zip -o chapter.zip
+ia-utils get-pages -i indexes/spalteholz*.sqlite -l 100-110 --zip -o chapter.zip
 ```
 
 ### Get the PDF
 ```bash
-ia-utils get-pdf -c catalogs/spalteholz*.sqlite
+ia-utils get-pdf -i indexes/spalteholz*.sqlite
 # Downloads: spalteholz-hand-atlas-human-anatomy-1933_b31362138.pdf
 ```
 
@@ -158,22 +158,22 @@ ia-utils get-pdf -c catalogs/spalteholz*.sqlite
 
 ### "Where can I find information about the hip joint?"
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "hip joint" -l 5
+ia-utils search-index -i indexes/spalteholz*.sqlite -q "hip joint" -l 5
 ```
 → Found on pages 220-231 (hip joint articulatio coxae)
 
 ### "Show me figure 210"
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "210"
+ia-utils search-index -i indexes/spalteholz*.sqlite -q "210"
 # Find the reference, then download the page
-ia-utils get-page -c catalogs/spalteholz*.sqlite -l 175 -o fig210.jpg
+ia-utils get-page -i indexes/spalteholz*.sqlite -l 175 -o fig210.jpg
 ```
 
 ### "What page is the Circle of Willis on?"
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q '"circle of willis"'
+ia-utils search-index -i indexes/spalteholz*.sqlite -q '"circle of willis"'
 # Page 422 (leaf 486)
-ia-utils get-url -c catalogs/spalteholz*.sqlite -l 486 --viewer
+ia-utils get-url -i indexes/spalteholz*.sqlite -l 486 --viewer
 ```
 
 ---
@@ -186,15 +186,15 @@ This example demonstrates the plate-finding techniques: searching for references
 
 **Spalteholz:**
 ```bash
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "liver" -l 10
-ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "hepatis" -l 10
+ia-utils search-index -i indexes/spalteholz*.sqlite -q "liver" -l 10
+ia-utils search-index -i indexes/spalteholz*.sqlite -q "hepatis" -l 10
 ```
 
 Results show liver content around leaves 615-630.
 
 **Cunningham:**
 ```bash
-ia-utils search-catalog -c catalogs/cunningham*.sqlite -q "lobes liver" -l 10
+ia-utils search-index -i indexes/cunningham*.sqlite -q "lobes liver" -l 10
 ```
 
 Results mention "Fig. 938" on pages around leaf 1227-1229.
@@ -203,12 +203,12 @@ Results mention "Fig. 938" on pages around leaf 1227-1229.
 
 ```bash
 # Spalteholz - check the liver section
-ia-utils get-page -c catalogs/spalteholz*.sqlite -l 615 -o liver_615.jpg
-ia-utils get-page -c catalogs/spalteholz*.sqlite -l 616 -o liver_616.jpg
+ia-utils get-page -i indexes/spalteholz*.sqlite -l 615 -o liver_615.jpg
+ia-utils get-page -i indexes/spalteholz*.sqlite -l 616 -o liver_616.jpg
 
 # Cunningham - search mentions Fig. 938, look for it
-ia-utils get-page -c catalogs/cunningham*.sqlite -l 1224 -o liver_1224.jpg
-ia-utils get-page -c catalogs/cunningham*.sqlite -l 1229 -o liver_1229.jpg
+ia-utils get-page -i indexes/cunningham*.sqlite -l 1224 -o liver_1224.jpg
+ia-utils get-page -i indexes/cunningham*.sqlite -l 1229 -o liver_1229.jpg
 ```
 
 Visual inspection reveals:

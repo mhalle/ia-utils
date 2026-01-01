@@ -25,7 +25,8 @@ def normalize_field_value(value: Any) -> str:
     if value is None:
         return ''
     if isinstance(value, (list, tuple)):
-        return ', '.join(normalize_field_value(v) for v in value if v)
+        # Only filter out None values, preserve falsy values like 0, False, ''
+        return ', '.join(normalize_field_value(v) for v in value if v is not None)
     if isinstance(value, dict):
         return json.dumps(value, ensure_ascii=False)
     return str(value)

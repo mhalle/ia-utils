@@ -1,6 +1,6 @@
 # ia-utils: Internet Archive Book Tools
 
-A command-line tool for discovering, cataloging, and extracting content from Internet Archive books and documents. This guide is designed for LLMs and humans working together to explore historical texts.
+A command-line tool for discovering, indexing, and extracting content from Internet Archive books and documents. This guide is designed for LLMs and humans working together to explore historical texts.
 
 ## Quick Install
 
@@ -15,7 +15,7 @@ uv run --with git+https://github.com/mhalle/ia-utils.git ia-utils --help
 - **[Quick Reference](quick-reference.md)** - Single-page command cheatsheet
 - **[Workflow Guide](workflow-guide.md)** - Step-by-step workflows for common tasks
 - **[Search Reference](search-reference.md)** - Detailed search options and examples
-- **[Catalog Reference](catalog-reference.md)** - Building and querying catalogs
+- **[Index Reference](index-reference.md)** - Building and querying indexes
 
 ### Advanced Topics
 - **[Page Navigation](page-navigation.md)** - Working with pages, leafs, figures, and plates
@@ -34,7 +34,7 @@ uv run --with git+https://github.com/mhalle/ia-utils.git ia-utils --help
 Every Internet Archive item has a unique identifier:
 - **ID**: `b31362138`, `cunninghamstextb00cunn`
 - **URL**: `https://archive.org/details/b31362138`
-- Items can also be referenced via a local catalog: `-c catalog.sqlite`
+- Items can also be referenced via a local index: `-i index.sqlite`
 
 ### Leaf vs Book Page
 - **Leaf**: Physical scan number, sequential with no gaps
@@ -45,7 +45,7 @@ Every Internet Archive item has a unique identifier:
   - Used in IA BookReader as bare numbers: `page/145`
 - **PDF Page**: 1-indexed; `book.pdf#page=N` where N = leaf + 1 (leaf 175 → page 176)
 - **n{n} format**: Internal BookReader format - DO NOT use in output (unreliable outside BookReader)
-- The `page_numbers` table maps between leaf and book page numbers
+- The `page_numbers` table in the index maps between leaf and book page numbers
 
 ### Copyright and Rights
 Always check the `rights` field in document metadata before recommending items:
@@ -53,8 +53,8 @@ Always check the `rights` field in document metadata before recommending items:
 - Others may have copyright restrictions or unclear status
 - Include rights information when presenting search results to users
 
-### Catalog Modes
-When building a catalog, three modes are available:
+### Index Modes
+When building an index, three modes are available:
 | Mode | Flag | Speed | Features |
 |------|------|-------|----------|
 | searchtext | (default) | Fast | Basic text, page-level search |
@@ -70,15 +70,15 @@ ia-utils search-ia -q "anatomy atlas" --year 1900-1940 -m texts --has-ocr
 # 2. INSPECT: Get metadata about a specific item
 ia-utils info b31362138
 
-# 3. CREATE CATALOG: Build searchable database
-ia-utils create-catalog b31362138 -d ./catalogs/
+# 3. CREATE INDEX: Build searchable database
+ia-utils create-index b31362138 -d ./indexes/
 
 # 4. SEARCH: Find pages by content
-ia-utils search-catalog -c catalog.sqlite -q "femur"
+ia-utils search-index -i index.sqlite -q "femur"
 
 # 5. VIEW: Get page images or URLs
-ia-utils get-page -c catalog.sqlite -l 175
-ia-utils get-url -c catalog.sqlite -l 175 --viewer
+ia-utils get-page -i index.sqlite -l 175
+ia-utils get-url -i index.sqlite -l 175 --viewer
 ```
 
 ## Command Summary
@@ -86,15 +86,15 @@ ia-utils get-url -c catalog.sqlite -l 175 --viewer
 | Command | Purpose |
 |---------|---------|
 | `search-ia` | Search IA metadata and full text |
-| `info` | Show metadata for item or catalog |
-| `create-catalog` | Build SQLite catalog from IA item |
-| `search-catalog` | Full-text search within catalog |
+| `info` | Show metadata for item or index |
+| `create-index` | Build SQLite index from IA item |
+| `search-index` | Full-text search within index |
 | `get-page` | Download page image |
 | `get-pages` | Download multiple pages (or ZIP) |
 | `get-url` | Get URL for page, viewer, or PDF |
-| `get-text` | Extract OCR text from catalog |
+| `get-text` | Extract OCR text from index |
 | `get-pdf` | Download PDF |
-| `rebuild-catalog` | Rebuild FTS indexes |
+| `rebuild-index` | Rebuild FTS indexes |
 
 ## Key Options Reference
 
@@ -133,29 +133,29 @@ ia-utils get-url -c catalog.sqlite -l 175 --viewer
 # Find anatomy atlases from 1900-1940, sorted by downloads
 $ ia-utils search-ia -q "anatomy atlas" --year 1900-1940 -m texts --has-ocr -s downloads:desc -l 5
 
-# Create catalog for Spalteholz atlas
-$ ia-utils create-catalog b31362138 -d ./catalogs/
+# Create index for Spalteholz atlas
+$ ia-utils create-index b31362138 -d ./indexes/
 
-# Search for "femur" in the catalog
-$ ia-utils search-catalog -c catalogs/spalteholz*.sqlite -q "femur"
+# Search for "femur" in the index
+$ ia-utils search-index -i indexes/spalteholz*.sqlite -q "femur"
 leaf: 175
 page: 145
 snippet: ...Right thigh bone, →femur←, inferior extremity...
 url: https://archive.org/details/b31362138/page/leaf175
 
 # Get the viewer URL for that page
-$ ia-utils get-url -c catalogs/spalteholz*.sqlite -l 175 --viewer
+$ ia-utils get-url -i indexes/spalteholz*.sqlite -l 175 --viewer
 https://archive.org/details/b31362138/page/leaf175
 
 # Download the page image
-$ ia-utils get-page -c catalogs/spalteholz*.sqlite -l 175 -o femur-page.jpg
+$ ia-utils get-page -i indexes/spalteholz*.sqlite -l 175 -o femur-page.jpg
 ```
 
 ## For LLMs: Quick Decision Guide
 
 1. **User wants to find a book** → Use `search-ia` with appropriate filters
 2. **User has an IA ID and wants details** → Use `info <identifier>`
-3. **User wants to search inside a book** → First `create-catalog`, then `search-catalog`
+3. **User wants to search inside a book** → First `create-index`, then `search-index`
 4. **User asks about a specific page** → Use `get-url --viewer` to give them a link
 5. **User needs to see a figure** → Use `get-page` to download and display it
 6. **OCR quality is poor** → Download page image with `get-page` and read it visually
