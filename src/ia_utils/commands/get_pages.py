@@ -356,12 +356,15 @@ def _download_as_mosaic(ia_id, pages, num_type, output, width, cols, label,
         logger.error("No valid pages to download")
         sys.exit(1)
 
-    # Download all pages in parallel using 'small' size
+    # Choose image size based on tile width: use medium if tiles are large enough
+    tile_width = width // cols
+    img_size = 'medium' if tile_width >= 250 else 'small'
+
     try:
         if verbose:
-            logger.subsection(f"\nDownloading {len(leaf_nums)} pages...")
+            logger.subsection(f"\nDownloading {len(leaf_nums)} pages ({img_size} images)...")
 
-        results = ia_client.download_images(ia_id, leaf_nums, size='small', max_concurrent=jobs)
+        results = ia_client.download_images(ia_id, leaf_nums, size=img_size, max_concurrent=jobs)
 
         # Create lookup by leaf number
         image_data = {}
