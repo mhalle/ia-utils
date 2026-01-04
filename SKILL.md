@@ -77,6 +77,7 @@ ia-utils get-page -i index.sqlite -l 42 -o page.jpg
 **Download:**
 - `get-page` - Download single page image
 - `get-pages` - Download multiple pages (range or all)
+- `get-pages --mosaic` - Create visual overview grid of pages (for LLM vision)
 - `get-pdf` - Download PDF from IA
 - `get-url` - Get URL without downloading
 
@@ -133,6 +134,27 @@ ia-utils info <id> -f rights -f possible-copyright-status -f licenseurl
 ```
 Safe values: "Public Domain", "No Known Copyright", CC licenses, pre-1928 US publications.
 
+### Visual Exploration with Mosaic
+Use `--mosaic` to create a grid of page thumbnails for quick visual scanning. This is ideal for understanding book structure, finding illustrations, covers, TOC, indexes, or blank pages.
+
+```bash
+# Quick overview: every 10th page of entire book
+ia-utils get-pages -i index.sqlite -l :10 --mosaic -o overview.jpg
+
+# Sample first 100 pages, every 5th
+ia-utils get-pages <id> -l 0-100:5 --mosaic -o sample.jpg
+
+# Dense scan with more columns
+ia-utils get-pages -i index.sqlite -l :5 --mosaic --cols 15 -o dense.jpg
+
+# Show book page numbers instead of leaf numbers
+ia-utils get-pages -i index.sqlite -b 1-100 --mosaic --label book -o pages.jpg
+```
+
+Range syntax with step: `1-100:10` = every 10th (1,11,21...), `:10` = every 10th from start to end.
+
+Mosaic options: `--width` (default 1536), `--cols` (default 12), `--label` (leaf/book/none), `--grid`.
+
 ## Tips
 
 - **Engage users with intermediate results**: Don't drill down making many tool calls trying to find a perfect or comprehensive answer. Instead:
@@ -148,6 +170,7 @@ Safe values: "Public Domain", "No Known Copyright", CC licenses, pre-1928 US pub
   Format as clickable markdown links: `[View page 42](https://archive.org/details/id/page/leaf42)`
 - **Link documents when first presented**: When introducing a book or document to the user for the first time, always include a link to the item on Internet Archive: `[Title](https://archive.org/details/<id>)`
 - **Link images to their context**: When downloading and displaying page images to the user, always accompany them with a BookReader link to that page. This allows users to explore surrounding text and images: `[View in context](https://archive.org/details/<id>/page/leaf<n>)`
+- **Use mosaic for visual understanding**: Before diving into specific pages, create a mosaic overview (`get-pages --mosaic -l :10`) to understand the book's structure - where illustrations are, chapter breaks, front/back matter, etc. This helps identify relevant sections quickly.
 - Use `--has-ocr` when searching to ensure text is available
 - Wellcome Library (`-c wellcomelibrary`) has high-quality medical scans
 - Google Books scans are older with lower resolution
