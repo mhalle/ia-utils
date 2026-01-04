@@ -6,7 +6,6 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_STORED
 import click
 import sqlite_utils
-from joblib import Parallel, delayed
 
 from ia_utils.core import image, ia_client
 from ia_utils.core.database import get_document_metadata, get_index_metadata
@@ -17,8 +16,8 @@ from ia_utils.utils.pages import parse_page_range
 
 @click.command()
 @click.argument('identifier', required=False)
-@click.option('-l', '--leaf', type=str, help='Leaf range (e.g., 1-7,21,25)')
-@click.option('-b', '--book', type=str, help='Book page range (e.g., 100-150)')
+@click.option('-l', '--leaf', type=str, help='Leaf range (e.g., 1-7,21,25,-10,200-)')
+@click.option('-b', '--book', type=str, help='Book page range (e.g., 100-150,-20,200-)')
 @click.option('--all', 'download_all', is_flag=True,
               help='Download all pages')
 @click.option('-p', '--prefix', type=str,
@@ -43,8 +42,8 @@ from ia_utils.utils.pages import parse_page_range
               help='Preserve tone in autocontrast (enables autocontrast)')
 @click.option('--skip-existing', is_flag=True,
               help='Skip pages that already exist')
-@click.option('-j', '--jobs', type=int, default=4,
-              help='Parallel jobs for --zip mode (default: 4)')
+@click.option('-j', '--jobs', type=int, default=16,
+              help='Concurrent downloads for --zip mode (default: 16)')
 @click.pass_context
 def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
               as_zip, size, format, quality, autocontrast, cutoff, preserve_tone,
@@ -59,9 +58,11 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
     PAGE SELECTION (one required):
 
     \b
-    -l/--leaf     Leaf range (e.g., 1-7,21,25)
-    -b/--book     Book page range (e.g., 100-150)
-    --all         All pages (requires -c or fetches metadata)
+    -l/--leaf     Leaf range (e.g., 1-7,21,25,-10,200-)
+    -b/--book     Book page range (e.g., 100-150,-20,200-)
+    --all         All pages (requires -i or fetches metadata)
+
+    Range syntax: -10 means 1-10, 200- means 200 to end (requires -i)
 
     OUTPUT MODES:
 
@@ -113,6 +114,7 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
     # Load index if provided
     db = None
     total_pages = None
+    max_page = None  # Max leaf number for open-ended ranges
     all_page_ids = None  # Actual leaf numbers from index
     if index:
         if verbose:
@@ -132,17 +134,16 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
                 sys.exit(1)
             ia_id = ia_id_from_index
 
-            # Get actual page IDs from index for --all mode
-            if download_all:
-                try:
-                    pages_rows = list(db.execute("SELECT DISTINCT page_id FROM text_blocks ORDER BY page_id").fetchall())
-                    all_page_ids = [row[0] for row in pages_rows]
-                    total_pages = len(all_page_ids)
-                    if verbose:
-                        logger.info(f"Found {total_pages} pages in index (leaf range: {min(all_page_ids)}-{max(all_page_ids)})")
-                except Exception:
-                    all_page_ids = None
-                    pass
+            # Get page IDs from index for --all mode and open-ended ranges
+            try:
+                pages_rows = list(db.execute("SELECT DISTINCT page_id FROM text_blocks ORDER BY page_id").fetchall())
+                all_page_ids = [row[0] for row in pages_rows]
+                total_pages = len(all_page_ids)
+                max_page = max(all_page_ids) if all_page_ids else None
+                if verbose and download_all:
+                    logger.info(f"Found {total_pages} pages in index (leaf range: {min(all_page_ids)}-{max(all_page_ids)})")
+            except Exception:
+                all_page_ids = None
         except Exception as e:
             logger.error(f"Failed to read index database: {e}")
             sys.exit(1)
@@ -215,18 +216,34 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
         num_type = 'leaf'
     elif leaf:
         try:
-            pages = parse_page_range(leaf)
+            pages = parse_page_range(leaf, max_page=max_page)
         except ValueError as e:
             logger.error(f"Invalid leaf range: {e}")
             sys.exit(1)
         num_type = 'leaf'
     else:  # book
-        try:
-            pages = parse_page_range(book)
-        except ValueError as e:
-            logger.error(f"Invalid book page range: {e}")
-            sys.exit(1)
-        num_type = 'book'
+        # Handle open-ended book page ranges specially (e.g., "200-")
+        # Convert start page to leaf, then take all leaves to end
+        if book.strip().endswith('-') and not book.strip().startswith('-'):
+            try:
+                start_book_page = int(book.strip()[:-1])
+                start_leaf = page_utils.get_leaf_num(start_book_page, 'book', ia_id=ia_id, db=db)
+                if max_page is None:
+                    raise ValueError("Open-ended range requires -i/--index")
+                pages = list(range(start_leaf, max_page + 1))
+                num_type = 'leaf'  # Now working with leaves
+                if verbose:
+                    logger.info(f"Book page {start_book_page} -> leaf {start_leaf}, taking leaves {start_leaf}-{max_page}")
+            except ValueError as e:
+                logger.error(f"Invalid book page range: {e}")
+                sys.exit(1)
+        else:
+            try:
+                pages = parse_page_range(book, max_page=None)
+            except ValueError as e:
+                logger.error(f"Invalid book page range: {e}")
+                sys.exit(1)
+            num_type = 'book'
 
     # Handle ZIP output mode
     if as_zip:
@@ -264,23 +281,9 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
     )
 
 
-def _download_single_page(args):
-    """Download a single page image (top-level for pickling)."""
-    leaf_num, ia_id, size = args
-    # leaf_num is the actual leaf number (used directly in URLs like leaf{n})
-
-    # Download image bytes directly from IA
-    source = image.APIImageSource(size=size)
-    image_bytes = source.fetch(ia_id, leaf_num)
-
-    # Use standard IA naming: {ia_id}_0001.jpg, etc.
-    filename = f"{ia_id}_{leaf_num:04d}.jpg"
-    return (filename, image_bytes)
-
-
 def _download_as_zip(ia_id, slug, pages, num_type, output, download_all, size,
                      jobs, db, logger, verbose):
-    """Download pages as a ZIP archive with parallel downloads."""
+    """Download pages as a ZIP archive with parallel async downloads."""
     # Determine output filename
     if output:
         output_path = Path(output)
@@ -293,7 +296,7 @@ def _download_as_zip(ia_id, slug, pages, num_type, output, download_all, size,
         logger.section(f"Downloading {len(pages)} pages from: {ia_id}")
         logger.info(f"   Size: {size}")
         logger.info(f"   Output: {output_path}")
-        logger.info(f"   Parallel jobs: {jobs}")
+        logger.info(f"   Concurrent downloads: {jobs}")
 
     # Try to download page_numbers.json for inclusion in ZIP
     page_numbers_data = None
@@ -324,18 +327,12 @@ def _download_as_zip(ia_id, slug, pages, num_type, output, download_all, size,
                 logger.error(f"Page {page_num}: {e}")
         pages = leaf_pages
 
-    # Prepare args for parallel download
-    download_args = [(page_num, ia_id, size) for page_num in pages]
-
-    # Download all pages in parallel
+    # Download all pages in parallel using async httpx
     try:
         if verbose:
-            logger.subsection(f"\nDownloading {len(pages)} pages in parallel ({jobs} jobs)...")
+            logger.subsection(f"\nDownloading {len(pages)} pages...")
 
-        # Use joblib for parallel downloads
-        results = Parallel(n_jobs=jobs, verbose=10 if verbose else 0)(
-            delayed(_download_single_page)(args) for args in download_args
-        )
+        results = ia_client.download_images(ia_id, pages, size=size, max_concurrent=jobs)
 
         if verbose:
             logger.subsection(f"\nWriting ZIP file...")
@@ -374,7 +371,7 @@ def _download_as_zip(ia_id, slug, pages, num_type, output, download_all, size,
 def _download_individual_files(ia_id, pages, num_type, prefix, size, format,
                                 quality, autocontrast, cutoff, preserve_tone,
                                 skip_existing, db, logger, verbose):
-    """Download pages as individual files."""
+    """Download pages as individual files with parallel downloads."""
     # Determine output format
     output_format = format
     if not output_format:
@@ -403,62 +400,98 @@ def _download_individual_files(ia_id, pages, num_type, prefix, size, format,
         if verbose:
             logger.info(f"   Created directory: {prefix_path.parent}")
 
-    # Download pages
+    # For 'original' size (JP2), fall back to sequential downloads
+    if size == 'original':
+        _download_individual_files_sequential(
+            ia_id, pages, num_type, prefix, size, output_format,
+            quality, autocontrast, cutoff, preserve_tone,
+            skip_existing, db, logger, verbose
+        )
+        return
+
+    # Convert page numbers to leaf numbers and filter existing
+    download_tasks = []  # List of (page_num, leaf_num, output_path)
+    skipped = 0
+
+    for page_num in pages:
+        try:
+            leaf_num = page_utils.get_leaf_num(page_num, num_type, ia_id=ia_id, db=db)
+        except ValueError as e:
+            logger.error(f"Page {page_num}: {e}")
+            continue
+
+        output_filename = f"{prefix}_{page_num:04d}.{output_format}"
+        output_path = Path(output_filename)
+
+        if skip_existing and output_path.exists():
+            if verbose:
+                logger.progress(f"   Skipping {output_path.name} (exists)")
+            skipped += 1
+            continue
+
+        download_tasks.append((page_num, leaf_num, output_path))
+
+    if not download_tasks:
+        if verbose:
+            logger.section("Complete")
+            logger.info(f"✓ Skipped: {skipped} (all exist)")
+        else:
+            click.echo(f"0/{len(pages)} pages downloaded, {skipped} skipped")
+        return
+
+    # Download all images in parallel
     try:
-        successful = 0
-        failed = 0
-        skipped = 0
+        leaf_nums = [t[1] for t in download_tasks]
 
         if verbose:
-            logger.subsection(f"\nDownloading {len(pages)} pages...")
+            logger.subsection(f"\nDownloading {len(download_tasks)} pages...")
 
-        for idx, page_num in enumerate(pages, 1):
+        results = ia_client.download_images(ia_id, leaf_nums, size=size)
+
+        # Create lookup by leaf number
+        image_data = {leaf: data for leaf, data in
+                      [(int(fname.split('_')[-1].split('.')[0]), data)
+                       for fname, data in results]}
+
+        if verbose:
+            logger.subsection(f"\nSaving {len(download_tasks)} files...")
+
+        # Process and save each image
+        successful = 0
+        failed = 0
+        needs_processing = autocontrast or cutoff is not None or preserve_tone
+
+        for idx, (page_num, leaf_num, output_path) in enumerate(download_tasks, 1):
             try:
-                # Convert to leaf number (canonical format for all image fetching)
-                try:
-                    leaf_num = page_utils.get_leaf_num(page_num, num_type, ia_id=ia_id, db=db)
-                except ValueError as e:
-                    logger.error(f"Page {page_num}: {e}")
+                img_bytes = image_data.get(leaf_num)
+                if img_bytes is None:
+                    logger.error(f"Page {page_num}: No data received")
                     failed += 1
                     continue
 
-                # Generate output filename (uses input page_num for consistency)
-                output_filename = f"{prefix}_{page_num:04d}.{output_format}"
-                output_path = Path(output_filename)
-
-                # Check if file exists and skip if requested
-                if skip_existing and output_path.exists():
-                    if verbose:
-                        logger.progress(f"  [{idx}/{len(pages)}] Skipping {output_path.name} (exists)")
-                    skipped += 1
-                    continue
-
-                if verbose:
-                    leaf_info = f"leaf {leaf_num}" if num_type == 'book' else f"{page_num}"
-                    logger.progress(f"  [{idx}/{len(pages)}] {leaf_info}...", nl=False)
-
-                # Download and convert using leaf number
-                image.download_and_convert_page(
-                    ia_id,
-                    leaf_num,
-                    output_path,
-                    size=size,
-                    output_format=output_format,
-                    quality=quality,
-                    autocontrast=autocontrast,
-                    cutoff=cutoff,
-                    preserve_tone=preserve_tone,
-                    logger=logger if verbose else None
-                )
+                if needs_processing or output_format != 'jpg':
+                    # Need to process through PIL
+                    image.process_image(
+                        img_bytes,
+                        output_path,
+                        output_format=output_format,
+                        quality=quality,
+                        autocontrast=autocontrast,
+                        cutoff=cutoff,
+                        preserve_tone=preserve_tone,
+                        logger=logger if verbose else None
+                    )
+                else:
+                    # Fast path: just write bytes
+                    output_path.write_bytes(img_bytes)
 
                 if verbose:
-                    logger.progress_done("✓")
-
+                    logger.progress(f"   [{idx}/{len(download_tasks)}] Saved {output_path.name}")
                 successful += 1
 
             except Exception as e:
                 if verbose:
-                    logger.progress_fail(f"✗ {e}")
+                    logger.error(f"   [{idx}/{len(download_tasks)}] {output_path.name}: {e}")
                 else:
                     logger.error(f"Page {page_num}: {e}")
                 failed += 1
@@ -481,3 +514,75 @@ def _download_individual_files(ia_id, pages, num_type, prefix, size, format,
     except Exception as e:
         logger.error(f"Download failed: {e}")
         sys.exit(1)
+
+
+def _download_individual_files_sequential(ia_id, pages, num_type, prefix, size, output_format,
+                                          quality, autocontrast, cutoff, preserve_tone,
+                                          skip_existing, db, logger, verbose):
+    """Sequential fallback for original size downloads."""
+    successful = 0
+    failed = 0
+    skipped = 0
+
+    if verbose:
+        logger.subsection(f"\nDownloading {len(pages)} pages (sequential)...")
+
+    for idx, page_num in enumerate(pages, 1):
+        try:
+            try:
+                leaf_num = page_utils.get_leaf_num(page_num, num_type, ia_id=ia_id, db=db)
+            except ValueError as e:
+                logger.error(f"Page {page_num}: {e}")
+                failed += 1
+                continue
+
+            output_filename = f"{prefix}_{page_num:04d}.{output_format}"
+            output_path = Path(output_filename)
+
+            if skip_existing and output_path.exists():
+                if verbose:
+                    logger.progress(f"  [{idx}/{len(pages)}] Skipping {output_path.name} (exists)")
+                skipped += 1
+                continue
+
+            if verbose:
+                logger.progress(f"  [{idx}/{len(pages)}] leaf {leaf_num}...", nl=False)
+
+            image.download_and_convert_page(
+                ia_id,
+                leaf_num,
+                output_path,
+                size=size,
+                output_format=output_format,
+                quality=quality,
+                autocontrast=autocontrast,
+                cutoff=cutoff,
+                preserve_tone=preserve_tone,
+                logger=logger if verbose else None
+            )
+
+            if verbose:
+                logger.progress_done("✓")
+            successful += 1
+
+        except Exception as e:
+            if verbose:
+                logger.progress_fail(f"✗ {e}")
+            else:
+                logger.error(f"Page {page_num}: {e}")
+            failed += 1
+
+    if verbose:
+        logger.section("Complete")
+        logger.info(f"✓ Downloaded: {successful}/{len(pages)}")
+        if skipped > 0:
+            logger.info(f"✓ Skipped: {skipped}")
+        if failed > 0:
+            logger.info(f"✗ Failed: {failed}")
+    else:
+        if failed == 0:
+            click.echo(f"{successful}/{len(pages)} pages downloaded")
+        else:
+            click.echo(f"{successful}/{len(pages)} pages downloaded, {failed} failed", err=True)
+
+    sys.exit(0 if failed == 0 else 1)

@@ -4,10 +4,24 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Literal
 from io import BytesIO
-import requests
+import httpx
 from PIL import Image, ImageOps
 
 from ia_utils.utils.logger import Logger
+
+
+def get_api_image_url(ia_id: str, leaf_num: int, size: str = 'medium') -> str:
+    """Get URL for a page image from the IA API.
+
+    Args:
+        ia_id: Internet Archive identifier
+        leaf_num: Leaf number (physical scan order)
+        size: Image size (small, medium, large)
+
+    Returns:
+        URL string
+    """
+    return f"https://archive.org/download/{ia_id}/page/leaf{leaf_num}_{size}.jpg"
 
 
 def get_server_from_metadata(ia_id: str) -> str:
@@ -20,11 +34,12 @@ def get_server_from_metadata(ia_id: str) -> str:
         Server hostname (e.g., 'ia800508.us.archive.org') or 'archive.org' as fallback
     """
     try:
-        resp = requests.get(f'https://archive.org/metadata/{ia_id}', timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        if 'server' in data:
-            return data['server']
+        with httpx.Client(timeout=10, follow_redirects=True) as client:
+            resp = client.get(f'https://archive.org/metadata/{ia_id}')
+            resp.raise_for_status()
+            data = resp.json()
+            if 'server' in data:
+                return data['server']
     except Exception:
         pass
     return 'archive.org'
@@ -60,13 +75,11 @@ class APIImageSource(ImageSource):
         Raises:
             Exception: If download fails
         """
-        # Use leaf-based URL format for stable addressing
-        # URL format: https://archive.org/download/{id}/page/leaf{leaf_num}_{size}.jpg
-        url = f"https://archive.org/download/{ia_id}/page/leaf{leaf_num}_{self.size}.jpg"
-
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        return response.content
+        url = get_api_image_url(ia_id, leaf_num, self.size)
+        with httpx.Client(timeout=30, follow_redirects=True) as client:
+            response = client.get(url)
+            response.raise_for_status()
+            return response.content
 
 
 class JP2ImageSource(ImageSource):
@@ -99,10 +112,11 @@ class JP2ImageSource(ImageSource):
         url = f"https://archive.org/download/{ia_id}/{ia_id}_jp2.zip/{ia_id}_jp2/{jp2_filename}"
 
         try:
-            response = requests.get(url, timeout=60)
-            response.raise_for_status()
-            return response.content
-        except requests.exceptions.HTTPError as e:
+            with httpx.Client(timeout=60, follow_redirects=True) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                return response.content
+        except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise FileNotFoundError(f"Leaf {leaf_num} ({jp2_filename}) not found in archive")
             raise Exception(f"Failed to fetch JP2 for leaf {leaf_num}: {e}")

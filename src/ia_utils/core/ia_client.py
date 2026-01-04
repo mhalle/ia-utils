@@ -1,10 +1,10 @@
 """Internet Archive API client operations."""
 
-from typing import Optional, Dict, Any, Iterable, List, Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, Iterable, List
+import asyncio
 import gzip
 import json
-import requests
+import httpx
 import internetarchive as ia
 
 from ia_utils.utils.logger import Logger
@@ -15,6 +15,9 @@ SEARCHTEXT_SUFFIX = "_hocr_searchtext.txt.gz"
 PAGEINDEX_SUFFIX = "_hocr_pageindex.json.gz"
 META_SUFFIX = "_meta.xml"
 FILES_SUFFIX = "_files.xml"
+
+# Default timeout for HTTP requests
+DEFAULT_TIMEOUT = 120.0
 
 
 def get_item(ia_id: str) -> ia.Item:
@@ -35,8 +38,29 @@ def get_item(ia_id: str) -> ia.Item:
         raise Exception(f"Failed to fetch item {ia_id}: {e}")
 
 
-def download_file_direct(ia_id: str, filename: str, timeout: int = 120) -> bytes:
-    """Download a file directly without verification.
+async def download_file_direct_async(
+    client: httpx.AsyncClient,
+    ia_id: str,
+    filename: str,
+) -> bytes:
+    """Download a file directly without verification (async).
+
+    Args:
+        client: httpx async client
+        ia_id: Internet Archive identifier
+        filename: Name of file to download
+
+    Returns:
+        File bytes
+    """
+    url = f"https://archive.org/download/{ia_id}/{filename}"
+    response = await client.get(url)
+    response.raise_for_status()
+    return response.content
+
+
+def download_file_direct(ia_id: str, filename: str, timeout: int = DEFAULT_TIMEOUT) -> bytes:
+    """Download a file directly without verification (sync).
 
     Use when you've already confirmed the file exists (e.g., from files.xml).
 
@@ -49,16 +73,17 @@ def download_file_direct(ia_id: str, filename: str, timeout: int = 120) -> bytes
         File bytes
     """
     url = f"https://archive.org/download/{ia_id}/{filename}"
-    response = requests.get(url, timeout=timeout)
-    response.raise_for_status()
-    return response.content
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.content
 
 
 def download_file(ia_id: str, filename: str, logger: Optional[Logger] = None,
                  verbose: bool = True) -> bytes:
     """Download a file from Internet Archive and return bytes.
 
-    Uses internetarchive library to verify file exists, then downloads via requests
+    Uses internetarchive library to verify file exists, then downloads via httpx
     for in-memory access.
 
     Args:
@@ -273,13 +298,66 @@ def get_searchtext_files(ia_id: str) -> tuple:
     return (f"{ia_id}{SEARCHTEXT_SUFFIX}", f"{ia_id}{PAGEINDEX_SUFFIX}")
 
 
+async def download_parallel_async(
+    ia_id: str,
+    downloads: List[Dict[str, Any]],
+    logger: Optional[Logger] = None,
+    verbose: bool = True,
+    max_concurrent: int = 10,
+) -> Dict[str, Any]:
+    """Download multiple files in parallel using async httpx.
+
+    Args:
+        ia_id: Internet Archive identifier
+        downloads: List of dicts with 'key', 'filename', and optional 'gzipped', 'json', 'optional' flags
+        logger: Optional logger instance
+        verbose: Whether to print progress
+        max_concurrent: Maximum concurrent downloads
+
+    Returns:
+        Dict mapping key to downloaded content (bytes, str, or dict depending on flags)
+    """
+    if logger is None:
+        logger = Logger(verbose=verbose)
+
+    results = {}
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def fetch(client: httpx.AsyncClient, item: Dict[str, Any]) -> tuple:
+        key = item['key']
+        filename = item['filename']
+        async with semaphore:
+            try:
+                content = await download_file_direct_async(client, ia_id, filename)
+                if item.get('gzipped'):
+                    content = gzip.decompress(content)
+                if item.get('json'):
+                    content = json.loads(content.decode('utf-8'))
+                return (key, content, None)
+            except Exception as e:
+                if item.get('optional'):
+                    return (key, None, None)
+                return (key, None, e)
+
+    async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, follow_redirects=True, http2=True) as client:
+        tasks = [fetch(client, item) for item in downloads]
+        fetch_results = await asyncio.gather(*tasks)
+
+    for key, content, error in fetch_results:
+        if error:
+            raise error
+        results[key] = content
+
+    return results
+
+
 def download_parallel(
     ia_id: str,
     downloads: List[Dict[str, Any]],
     logger: Optional[Logger] = None,
     verbose: bool = True
 ) -> Dict[str, Any]:
-    """Download multiple files in parallel.
+    """Download multiple files in parallel (sync wrapper).
 
     Args:
         ia_id: Internet Archive identifier
@@ -290,32 +368,61 @@ def download_parallel(
     Returns:
         Dict mapping key to downloaded content (bytes, str, or dict depending on flags)
     """
-    if logger is None:
-        logger = Logger(verbose=verbose)
+    return asyncio.run(download_parallel_async(ia_id, downloads, logger, verbose))
 
-    results = {}
 
-    def fetch(item: Dict[str, Any]) -> tuple:
-        key = item['key']
-        filename = item['filename']
-        try:
-            content = download_file_direct(ia_id, filename)
-            if item.get('gzipped'):
-                content = gzip.decompress(content)
-            if item.get('json'):
-                content = json.loads(content.decode('utf-8'))
-            return (key, content, None)
-        except Exception as e:
-            if item.get('optional'):
-                return (key, None, None)
-            return (key, None, e)
+async def download_images_async(
+    ia_id: str,
+    pages: List[int],
+    size: str = 'medium',
+    max_concurrent: int = 16,
+) -> List[tuple]:
+    """Download multiple page images in parallel.
 
-    with ThreadPoolExecutor(max_workers=len(downloads)) as executor:
-        futures = {executor.submit(fetch, item): item for item in downloads}
-        for future in as_completed(futures):
-            key, content, error = future.result()
-            if error and not futures[future].get('optional'):
-                raise error
-            results[key] = content
+    Args:
+        ia_id: Internet Archive identifier
+        pages: List of leaf numbers to download
+        size: Image size (small, medium, large)
+        max_concurrent: Maximum concurrent downloads
 
-    return results
+    Returns:
+        List of (filename, image_bytes) tuples
+    """
+    from ia_utils.core.image import get_api_image_url
+
+    semaphore = asyncio.Semaphore(max_concurrent)
+    results = []
+
+    async def fetch_image(client: httpx.AsyncClient, leaf_num: int) -> tuple:
+        async with semaphore:
+            url = get_api_image_url(ia_id, leaf_num, size)
+            response = await client.get(url)
+            response.raise_for_status()
+            filename = f"{ia_id}_{leaf_num:04d}.jpg"
+            return (filename, response.content)
+
+    async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, follow_redirects=True, http2=True) as client:
+        tasks = [fetch_image(client, leaf) for leaf in pages]
+        results = await asyncio.gather(*tasks)
+
+    return list(results)
+
+
+def download_images(
+    ia_id: str,
+    pages: List[int],
+    size: str = 'medium',
+    max_concurrent: int = 16,
+) -> List[tuple]:
+    """Download multiple page images in parallel (sync wrapper).
+
+    Args:
+        ia_id: Internet Archive identifier
+        pages: List of leaf numbers to download
+        size: Image size (small, medium, large)
+        max_concurrent: Maximum concurrent downloads
+
+    Returns:
+        List of (filename, image_bytes) tuples
+    """
+    return asyncio.run(download_images_async(ia_id, pages, size, max_concurrent))

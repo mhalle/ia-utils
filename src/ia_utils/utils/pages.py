@@ -128,23 +128,26 @@ def get_leaf_num(page_num: int, page_type: str,
         raise ValueError(f"Unknown page_type: {page_type}. Use 'leaf' or 'book'.")
 
 
-def parse_page_range(range_str: str) -> List[int]:
+def parse_page_range(range_str: str, max_page: int | None = None) -> List[int]:
     """Parse page range string into list of page numbers.
 
     Supports formats:
     - Single page: '42'
     - Range: '1-7' (inclusive)
+    - From start: '-10' (pages 1-10)
+    - To end: '200-' (pages 200 to max_page, requires max_page)
     - Comma-separated: '1,3,5'
-    - Mixed: '1-7,21,25,45-50'
+    - Mixed: '1-7,21,25-'
 
     Args:
         range_str: Page range string
+        max_page: Maximum page number (required for open-ended ranges like '200-')
 
     Returns:
         Sorted list of unique integers
 
     Raises:
-        ValueError: If format is invalid
+        ValueError: If format is invalid or max_page needed but not provided
     """
     pages = set()
 
@@ -154,11 +157,25 @@ def parse_page_range(range_str: str) -> List[int]:
             continue
 
         if '-' in part:
-            # Range format: "1-7"
+            # Range format: "1-7", "-10", or "200-"
             try:
-                start, end = part.split('-')
-                start = int(start.strip())
-                end = int(end.strip())
+                # Split only on first hyphen to handle negative-like syntax
+                if part.startswith('-'):
+                    # "-10" means 1 to 10
+                    end = int(part[1:].strip())
+                    start = 1
+                elif part.endswith('-'):
+                    # "200-" means 200 to max
+                    start = int(part[:-1].strip())
+                    if max_page is None:
+                        raise ValueError(f"Open-ended range '{part}' requires max_page")
+                    end = max_page
+                else:
+                    # "1-7" normal range
+                    start, end = part.split('-')
+                    start = int(start.strip())
+                    end = int(end.strip())
+
                 if start > end:
                     raise ValueError(f"Invalid range: {start}-{end} (start > end)")
                 pages.update(range(start, end + 1))
