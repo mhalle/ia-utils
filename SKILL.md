@@ -155,6 +155,8 @@ Range syntax with step: `1-100:10` = every 10th (1,11,21...), `:10` = every 10th
 
 Mosaic options: `--width` (default 1536), `--cols` (default 12), `--label` (leaf/book/none), `--grid`.
 
+Use `--cols` to balance page count vs resolution: fewer columns = larger tiles with more detail, more columns = fit more pages. Image quality auto-scales with tile size (small/medium/large).
+
 ## Tips
 
 - **Engage users with intermediate results**: Don't drill down making many tool calls trying to find a perfect or comprehensive answer. Instead:
