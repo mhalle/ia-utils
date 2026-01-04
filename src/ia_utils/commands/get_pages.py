@@ -43,11 +43,21 @@ from ia_utils.utils.pages import parse_page_range
 @click.option('--skip-existing', is_flag=True,
               help='Skip pages that already exist')
 @click.option('-j', '--jobs', type=int, default=16,
-              help='Concurrent downloads for --zip mode (default: 16)')
+              help='Concurrent downloads (default: 16)')
+@click.option('--mosaic', 'as_mosaic', is_flag=True,
+              help='Output as mosaic grid image for LLM vision')
+@click.option('--width', type=int, default=1536,
+              help='Mosaic output width in pixels (default: 1536)')
+@click.option('--cols', type=int, default=12,
+              help='Mosaic columns (default: 12)')
+@click.option('--label', type=click.Choice(['leaf', 'book', 'none']),
+              default='leaf', help='Mosaic label type (default: leaf)')
+@click.option('--grid', is_flag=True,
+              help='Draw grid lines between mosaic tiles')
 @click.pass_context
 def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
               as_zip, size, format, quality, autocontrast, cutoff, preserve_tone,
-              skip_existing, jobs):
+              skip_existing, jobs, as_mosaic, width, cols, label, grid):
     """Download page images from Internet Archive.
 
     IDENTIFIER (optional if -i provided):
@@ -58,11 +68,11 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
     PAGE SELECTION (one required):
 
     \b
-    -l/--leaf     Leaf range (e.g., 1-7,21,25,-10,200-)
+    -l/--leaf     Leaf range (e.g., 1-7,21,25,-10,200-,1-100:10)
     -b/--book     Book page range (e.g., 100-150,-20,200-)
     --all         All pages (requires -i or fetches metadata)
 
-    Range syntax: -10 means 1-10, 200- means 200 to end (requires -i)
+    Range syntax: -10 means 1-10, 200- means 200 to end, 1-100:10 means every 10th
 
     OUTPUT MODES:
 
@@ -72,23 +82,25 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
     ZIP archive:
       --zip         Output as ZIP file
       -o file.zip   ZIP filename (auto-named for --all --zip)
+    Mosaic (for LLM vision):
+      --mosaic      Output as single grid image
+      -o file.jpg   Mosaic output file
+
+    MOSAIC OPTIONS:
+
+    \b
+    --width N     Output width in pixels (default: 1536)
+    --cols N      Number of columns (default: 12)
+    --label TYPE  Label tiles: leaf, book, none (default: leaf)
+    --grid        Draw grid lines between tiles
 
     IMAGE SIZES:
 
     \b
-    small     ~300px width (very fast)
+    small     ~300px width (very fast, used for mosaic)
     medium    ~600px width (default)
     large     full resolution
     original  full resolution JP2 lossless (individual files only)
-
-    IMAGE PROCESSING (individual files only):
-
-    \b
-    --autocontrast    Enable autocontrast
-    --cutoff N        Autocontrast cutoff (0-100)
-    --preserve-tone   Preserve tone in autocontrast
-    --quality N       JPEG quality (1-95)
-    --skip-existing   Skip existing files
 
     EXAMPLES:
 
@@ -97,10 +109,10 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
     ia-utils get-pages -i book.sqlite -l 1-7 -p pages/atlas
     # Download all pages as ZIP (auto-named)
     ia-utils get-pages -i book.sqlite --all --zip
-    # Download range as ZIP
-    ia-utils get-pages -i book.sqlite -l 100-200 --zip -o chapter5.zip
-    # Download with image processing
-    ia-utils get-pages -i book.sqlite -l 1-10 -p out --autocontrast
+    # Create mosaic of pages 1-50
+    ia-utils get-pages -i book.sqlite -l 1-50 --mosaic -o overview.jpg
+    # Mosaic with every 10th page
+    ia-utils get-pages -i book.sqlite -l 0-:10 --mosaic -o sampled.jpg
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
@@ -162,7 +174,25 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
         sys.exit(1)
 
     # Validate output options
-    if as_zip:
+    if as_zip and as_mosaic:
+        logger.error("Cannot combine --zip and --mosaic")
+        sys.exit(1)
+
+    if as_mosaic:
+        # Mosaic mode validations
+        if size == 'original':
+            logger.error("--mosaic mode does not support --size original")
+            sys.exit(1)
+        if any([autocontrast, cutoff, preserve_tone, quality]):
+            logger.error("--mosaic mode does not support image processing options")
+            sys.exit(1)
+        if prefix:
+            logger.error("Use -o/--output for mosaic filename, not -p/--prefix")
+            sys.exit(1)
+        if not output:
+            logger.error("--mosaic requires -o/--output for output file")
+            sys.exit(1)
+    elif as_zip:
         # ZIP mode validations
         if size == 'original':
             logger.error("--zip mode does not support --size original")
@@ -182,7 +212,7 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
             logger.error("-p/--prefix required for individual files")
             sys.exit(1)
         if output:
-            logger.error("-o/--output is for --zip mode; use -p/--prefix for individual files")
+            logger.error("-o/--output is for --zip/--mosaic mode; use -p/--prefix for individual files")
             sys.exit(1)
 
     # Get total pages for --all mode
@@ -245,6 +275,24 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
                 sys.exit(1)
             num_type = 'book'
 
+    # Handle mosaic output mode
+    if as_mosaic:
+        _download_as_mosaic(
+            ia_id=ia_id,
+            pages=pages,
+            num_type=num_type,
+            output=output,
+            width=width,
+            cols=cols,
+            label=label,
+            grid=grid,
+            jobs=jobs,
+            db=db,
+            logger=logger,
+            verbose=verbose
+        )
+        return
+
     # Handle ZIP output mode
     if as_zip:
         _download_as_zip(
@@ -279,6 +327,94 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
         logger=logger,
         verbose=verbose
     )
+
+
+def _download_as_mosaic(ia_id, pages, num_type, output, width, cols, label,
+                         grid, jobs, db, logger, verbose):
+    """Download pages and create a mosaic grid image."""
+    output_path = Path(output)
+
+    if verbose:
+        logger.section(f"Creating mosaic from {len(pages)} pages: {ia_id}")
+        logger.info(f"   Output: {output_path}")
+        logger.info(f"   Width: {width}px, Columns: {cols}")
+        logger.info(f"   Labels: {label}")
+
+    # Convert book pages to leaf numbers if needed, keeping track of original page nums for labels
+    leaf_nums = []
+    page_labels = []  # Original page numbers for labels
+
+    for page_num in pages:
+        try:
+            leaf_num = page_utils.get_leaf_num(page_num, num_type, ia_id=ia_id, db=db)
+            leaf_nums.append(leaf_num)
+            page_labels.append(page_num)
+        except ValueError as e:
+            logger.error(f"Page {page_num}: {e}")
+
+    if not leaf_nums:
+        logger.error("No valid pages to download")
+        sys.exit(1)
+
+    # Download all pages in parallel using 'small' size
+    try:
+        if verbose:
+            logger.subsection(f"\nDownloading {len(leaf_nums)} pages...")
+
+        results = ia_client.download_images(ia_id, leaf_nums, size='small', max_concurrent=jobs)
+
+        # Create lookup by leaf number
+        image_data = {}
+        for fname, data in results:
+            # Extract leaf number from filename like "id_0042.jpg"
+            leaf = int(fname.split('_')[-1].split('.')[0])
+            image_data[leaf] = data
+
+        # Collect images in order
+        images = []
+        labels = []
+        for idx, leaf_num in enumerate(leaf_nums):
+            if leaf_num in image_data:
+                images.append(image_data[leaf_num])
+                # Generate label based on label type
+                if label == 'leaf':
+                    labels.append(str(leaf_num))
+                elif label == 'book':
+                    labels.append(str(page_labels[idx]))
+                else:
+                    labels.append('')
+
+        if verbose:
+            logger.subsection(f"\nCreating mosaic...")
+
+        # Create mosaic
+        mosaic = image.create_mosaic(
+            images=images,
+            labels=labels if label != 'none' else None,
+            width=width,
+            cols=cols,
+            grid=grid
+        )
+
+        # Save mosaic
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        mosaic.save(output_path, quality=90)
+
+        if verbose:
+            size_mb = output_path.stat().st_size / 1024 / 1024
+            logger.section("Complete")
+            logger.info(f"✓ Mosaic created: {output_path}")
+            logger.info(f"✓ Size: {size_mb:.1f} MB ({mosaic.width}x{mosaic.height}px)")
+            logger.info(f"✓ Pages: {len(images)}")
+        else:
+            click.echo(str(output_path))
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Failed to create mosaic: {e}")
+        if verbose:
+            traceback.print_exc()
+        sys.exit(1)
 
 
 def _download_as_zip(ia_id, slug, pages, num_type, output, download_all, size,

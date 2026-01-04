@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, Literal
 from io import BytesIO
 import httpx
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageDraw, ImageFont
 
 from ia_utils.utils.logger import Logger
 
@@ -265,3 +265,131 @@ def download_and_convert_page(ia_id: str,
     )
 
     logger.verbose_info(f"   Saved: {output_path.name}")
+
+
+def create_mosaic(
+    images: list[bytes],
+    labels: Optional[list[str]] = None,
+    width: int = 1536,
+    cols: int = 12,
+    grid: bool = False,
+) -> Image.Image:
+    """Create a mosaic grid from page images.
+
+    Args:
+        images: List of image bytes
+        labels: Optional list of label strings (same length as images)
+        width: Output image width in pixels
+        cols: Number of columns
+        grid: Whether to draw grid lines between tiles
+
+    Returns:
+        PIL Image object
+    """
+    if not images:
+        raise ValueError("No images provided")
+
+    # Calculate tile dimensions
+    tile_width = width // cols
+
+    # Open all images and resize to tile width (maintain aspect ratio)
+    tiles = []
+    tile_height = None  # Will be determined from first image's aspect ratio
+
+    for img_bytes in images:
+        img = Image.open(BytesIO(img_bytes))
+
+        # Calculate height maintaining aspect ratio
+        aspect = img.height / img.width
+        new_height = int(tile_width * aspect)
+
+        # Use first image to set tile_height for all
+        if tile_height is None:
+            tile_height = new_height
+
+        # Resize image
+        img = img.resize((tile_width, tile_height), Image.Resampling.LANCZOS)
+
+        # Convert to RGB if needed
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        tiles.append(img)
+
+    # Calculate canvas size
+    rows = (len(tiles) + cols - 1) // cols  # Ceiling division
+    canvas_width = cols * tile_width
+    canvas_height = rows * tile_height
+
+    # Create canvas
+    canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
+
+    # Paste tiles
+    for idx, tile in enumerate(tiles):
+        row = idx // cols
+        col = idx % cols
+        x = col * tile_width
+        y = row * tile_height
+        canvas.paste(tile, (x, y))
+
+    # Draw labels if provided
+    if labels:
+        draw = ImageDraw.Draw(canvas)
+
+        # Try to get a font - use default with size if available (PIL 10+)
+        try:
+            font = ImageFont.load_default(size=18)
+        except TypeError:
+            # Fallback for older PIL versions
+            font = ImageFont.load_default()
+
+        for idx, label in enumerate(labels):
+            if not label:
+                continue
+
+            row = idx // cols
+            col = idx % cols
+
+            # Calculate tile position
+            tile_x = col * tile_width
+            tile_y = row * tile_height
+
+            # Get text size
+            bbox = draw.textbbox((0, 0), label, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+
+            # Position in SE corner with padding from edge
+            edge_padding = 6
+            bg_padding = 5
+
+            # Calculate background rectangle position first
+            bg_right = tile_x + tile_width - edge_padding
+            bg_bottom = tile_y + tile_height - edge_padding
+            bg_left = bg_right - text_width - (bg_padding * 2)
+            bg_top = bg_bottom - text_height - (bg_padding * 2)
+
+            # Draw white background rectangle
+            draw.rectangle([bg_left, bg_top, bg_right, bg_bottom], fill='white')
+
+            # Draw text centered in the background
+            label_x = bg_left + bg_padding
+            label_y = bg_top + bg_padding
+            draw.text((label_x, label_y), label, fill='black', font=font)
+
+    # Draw grid lines if requested
+    if grid:
+        draw = ImageDraw.Draw(canvas)
+        grid_color = (128, 128, 128)  # Gray
+
+        # Vertical lines
+        for col in range(1, cols):
+            x = col * tile_width
+            draw.line([(x, 0), (x, canvas_height)], fill=grid_color, width=1)
+
+        # Horizontal lines
+        for row in range(1, rows):
+            y = row * tile_height
+            draw.line([(0, y), (canvas_width, y)], fill=grid_color, width=1)
+
+    return canvas

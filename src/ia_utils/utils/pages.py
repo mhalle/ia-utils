@@ -134,10 +134,14 @@ def parse_page_range(range_str: str, max_page: int | None = None) -> List[int]:
     Supports formats:
     - Single page: '42'
     - Range: '1-7' (inclusive)
-    - From start: '-10' (pages 1-10)
+    - Range with step: '1-100:10' (every 10th: 1, 11, 21, ...)
+    - From start: '-10' (pages 0-10)
+    - From start with step: '-100:10' (0, 10, 20, ... 100)
     - To end: '200-' (pages 200 to max_page, requires max_page)
+    - To end with step: '200-:5' (every 5th from 200 to end)
+    - All pages with step: ':10' (every 10th from 0 to max_page)
     - Comma-separated: '1,3,5'
-    - Mixed: '1-7,21,25-'
+    - Mixed: '1-7,21,25-,50-100:10'
 
     Args:
         range_str: Page range string
@@ -156,14 +160,30 @@ def parse_page_range(range_str: str, max_page: int | None = None) -> List[int]:
         if not part:
             continue
 
-        if '-' in part:
+        # Check for step suffix (e.g., "1-100:10")
+        step = 1
+        if ':' in part:
+            part, step_str = part.rsplit(':', 1)
+            try:
+                step = int(step_str.strip())
+                if step < 1:
+                    raise ValueError(f"Step must be positive, got {step}")
+            except ValueError:
+                raise ValueError(f"Invalid step value '{step_str}'")
+
+        # Handle empty part after step extraction (":10" means 0 to max with step)
+        if not part:
+            if max_page is None:
+                raise ValueError(f"Step-only syntax ':{step}' requires max_page")
+            pages.update(range(0, max_page + 1, step))
+        elif '-' in part:
             # Range format: "1-7", "-10", or "200-"
             try:
                 # Split only on first hyphen to handle negative-like syntax
                 if part.startswith('-'):
-                    # "-10" means 1 to 10
+                    # "-10" means 0 to 10
                     end = int(part[1:].strip())
-                    start = 1
+                    start = 0
                 elif part.endswith('-'):
                     # "200-" means 200 to max
                     start = int(part[:-1].strip())
@@ -178,7 +198,7 @@ def parse_page_range(range_str: str, max_page: int | None = None) -> List[int]:
 
                 if start > end:
                     raise ValueError(f"Invalid range: {start}-{end} (start > end)")
-                pages.update(range(start, end + 1))
+                pages.update(range(start, end + 1, step))
             except ValueError as e:
                 raise ValueError(f"Invalid range format '{part}': {e}")
         else:
