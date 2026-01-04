@@ -1,6 +1,7 @@
 """Get URL command for page images and viewer."""
 
 import sys
+import webbrowser
 import click
 import sqlite_utils
 
@@ -70,8 +71,9 @@ def build_pdf_url(ia_id: str, leaf_num: int = None) -> str:
 @click.option('--pdf', is_flag=True, help='Get PDF URL (with #page if page specified)')
 @click.option('--size', type=click.Choice(['small', 'medium', 'large', 'original']),
               default='original', help='Image size (default: original, ignored with --viewer/--pdf)')
+@click.option('--open', 'open_browser', is_flag=True, help='Open URL in web browser')
 @click.pass_context
-def get_url(ctx, identifier, leaf, book, index, viewer, pdf, size):
+def get_url(ctx, identifier, leaf, book, index, viewer, pdf, size, open_browser):
     """Get URL for a page image, viewer, or PDF from Internet Archive.
 
     By default returns direct image URL. Use --viewer for book reader URL,
@@ -186,3 +188,6 @@ def get_url(ctx, identifier, leaf, book, index, viewer, pdf, size):
         url = build_page_image_url(ia_id, leaf_num, size)
 
     click.echo(url)
+
+    if open_browser:
+        webbrowser.open(url)
