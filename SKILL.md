@@ -15,7 +15,9 @@ CLI tools for discovering, indexing, and downloading books and documents from th
 
 ## Download
 
-Latest release: https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.zip
+Latest release:
+- https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.zip
+- https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.skill
 
 ## Installation
 
