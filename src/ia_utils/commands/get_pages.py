@@ -356,9 +356,14 @@ def _download_as_mosaic(ia_id, pages, num_type, output, width, cols, label,
         logger.error("No valid pages to download")
         sys.exit(1)
 
-    # Choose image size based on tile width: use medium if tiles are large enough
+    # Choose image size based on tile width
     tile_width = width // cols
-    img_size = 'medium' if tile_width >= 250 else 'small'
+    if tile_width >= 600:
+        img_size = 'large'
+    elif tile_width >= 250:
+        img_size = 'medium'
+    else:
+        img_size = 'small'
 
     try:
         if verbose:
