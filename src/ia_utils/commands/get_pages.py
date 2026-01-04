@@ -48,7 +48,7 @@ from ia_utils.utils.pages import parse_page_range
               help='Output as mosaic grid image for LLM vision')
 @click.option('--width', type=int, default=1536,
               help='Mosaic output width in pixels (default: 1536)')
-@click.option('--cols', type=int, default=12,
+@click.option('--cols', '--columns', type=int, default=12,
               help='Mosaic columns (default: 12)')
 @click.option('--label', type=click.Choice(['leaf', 'book', 'none']),
               default='leaf', help='Mosaic label type (default: leaf)')
