@@ -340,15 +340,41 @@ def _download_as_mosaic(ia_id, pages, num_type, output, width, cols, label,
         logger.info(f"   Width: {width}px, Columns: {cols}")
         logger.info(f"   Labels: {label}")
 
-    # Convert book pages to leaf numbers if needed, keeping track of original page nums for labels
+    # Build reverse lookup (leaf -> book page) once for --label book
+    leaf_to_book = {}
+    if label == 'book':
+        if db:
+            try:
+                rows = db.execute(
+                    "SELECT leaf_num, book_page_number FROM page_numbers"
+                ).fetchall()
+                leaf_to_book = {row[0]: row[1] for row in rows}
+                if verbose:
+                    logger.info(f"   Loaded {len(leaf_to_book)} page number mappings from index")
+            except Exception:
+                pass  # Table may not exist
+        elif ia_id:
+            try:
+                if verbose:
+                    logger.progress("   Fetching page numbers...", nl=False)
+                page_data = ia_client.download_json(ia_id, f"{ia_id}_page_numbers.json", verbose=False)
+                if page_data and 'pages' in page_data:
+                    leaf_to_book = {p['leafNum']: p.get('pageNumber', '') for p in page_data['pages']}
+                    if verbose:
+                        logger.progress_done(f"✓ ({len(leaf_to_book)} pages)")
+                elif verbose:
+                    logger.progress_done("(not available)")
+            except Exception:
+                if verbose:
+                    logger.progress_done("(not available)")
+
+    # Convert book pages to leaf numbers if needed
     leaf_nums = []
-    page_labels = []  # Original page numbers for labels
 
     for page_num in pages:
         try:
             leaf_num = page_utils.get_leaf_num(page_num, num_type, ia_id=ia_id, db=db)
             leaf_nums.append(leaf_num)
-            page_labels.append(page_num)
         except ValueError as e:
             logger.error(f"Page {page_num}: {e}")
 
@@ -381,14 +407,15 @@ def _download_as_mosaic(ia_id, pages, num_type, output, width, cols, label,
         # Collect images in order
         images = []
         labels = []
-        for idx, leaf_num in enumerate(leaf_nums):
+        for leaf_num in leaf_nums:
             if leaf_num in image_data:
                 images.append(image_data[leaf_num])
                 # Generate label based on label type
                 if label == 'leaf':
                     labels.append(str(leaf_num))
                 elif label == 'book':
-                    labels.append(str(page_labels[idx]))
+                    # Use reverse lookup; empty string if no mapping
+                    labels.append(leaf_to_book.get(leaf_num, ''))
                 else:
                     labels.append('')
 
