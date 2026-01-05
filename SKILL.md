@@ -111,6 +111,15 @@ Commands accept IA identifiers in multiple forms:
 
 ## Common Workflows
 
+### Discovering Resources
+Use multiple approaches to find relevant books, documents, images, and other resources:
+
+1. **General knowledge**: Use what you know about the topic - key authors, landmark publications, historical periods, and related subjects
+2. **Web search of archive.org**: Search the web for `site:archive.org <topic>` to find items, collections, and curated lists
+3. **ia-utils search-ia**: Search IA metadata directly for precise filtering by year, mediatype, collection, and OCR availability
+
+Combine these approaches: start with general knowledge to identify search terms, use web search to discover collections and notable items, then use `search-ia` to systematically explore with filters.
+
 ### Find and Download a Historical Book
 ```bash
 # 1. Search for books
