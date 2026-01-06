@@ -12,6 +12,7 @@ from ia_utils.commands.get_pdf import get_pdf
 from ia_utils.commands.get_text import get_text
 from ia_utils.commands.get_url import get_url
 from ia_utils.commands.list_files import list_files
+from ia_utils.commands.ocr_page import ocr_page
 from ia_utils.commands.search_index import search_index
 from ia_utils.commands.search_ia import search_ia
 from ia_utils.commands.rebuild_index import rebuild_index
@@ -55,6 +56,7 @@ def cli(ctx, verbose):
       get-pdf          Download PDF
       get-text         Get OCR text from index
       get-url          Get URL without downloading
+      ocr-page         Run local OCR on a page (pytesseract)
 
     IDENTIFIERS:
 
@@ -80,6 +82,7 @@ cli.add_command(get_text)
 cli.add_command(get_url)
 cli.add_command(info)
 cli.add_command(list_files)
+cli.add_command(ocr_page)
 cli.add_command(rebuild_index)
 cli.add_command(search_index)
 cli.add_command(search_ia)
