@@ -49,6 +49,13 @@ sh $SKILL_DIR/scripts/install.sh --force
 
 Note: `$SKILL_DIR` refers to the skill directory path (e.g., `/mnt/skills/ia-utils` depending on platform).
 
+## Updating the Skill
+
+If the user asks to update this skill, download the latest .skill file from:
+https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.skill
+
+Present the downloaded file to the user for installation.
+
 ## Quick Start
 
 ```bash
