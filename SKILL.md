@@ -2,7 +2,7 @@
 name: ia-utils
 description: Work with Internet Archive books and documents. Use when searching IA metadata, creating searchable indexes from OCR text, downloading pages, PDFs, or getting URLs, or querying local indexes. Triggers on "Internet Archive", "archive.org", "IA document", "OCR index", or historical book/document research.
 license: MIT
-compatibility: Requires uv and Python 3.9+. Requires network access to archive.org.
+compatibility: Requires uv and Python 3.9+. Requires network access to archive.org. The ocr-page command requires the tesseract or tesseract-ocr package to be installed in the OS.
 metadata:
   author: mhalle
   repository: https://github.com/mhalle/ia-utils
@@ -82,6 +82,7 @@ ia-utils get-page -i index.sqlite -l 42 -o page.jpg
 - `get-pages --mosaic` - Create visual overview grid of pages (for LLM vision)
 - `get-pdf` - Download PDF from IA
 - `get-url` - Get URL without downloading
+- `ocr-page` - Run local OCR on a page (requires tesseract)
 
 ## Documentation
 
