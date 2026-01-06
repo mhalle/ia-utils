@@ -6,7 +6,7 @@ compatibility: Requires uv and Python 3.9+. Requires network access to archive.o
 metadata:
   author: mhalle
   repository: https://github.com/mhalle/ia-utils
-  download: https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.zip
+  download: https://github.com/mhalle/ia-utils/releases/latest/download/ia-utils.skill
 ---
 
 # ia-utils: Internet Archive Document Tools
