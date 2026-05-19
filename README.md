@@ -9,6 +9,7 @@ A command-line tool for working with Internet Archive books and documents. Build
 - **Full-text search** - Search OCR text with FTS5 support for phrases, boolean operators, and proximity queries
 - **Download pages** - Get individual pages or batches as JPG/PNG/JP2, with optional image processing
 - **Download PDFs** - Fetch PDFs directly from Internet Archive
+- **Navigation outlines** - Attach hierarchical chapter/section outlines to indexes (schema-compatible with [iiif-utils](https://github.com/mhalle/iiif))
 - **Flexible output** - Export results as table, JSON, JSONL, CSV, or key-value records
 
 ## Documentation
@@ -21,6 +22,7 @@ See the [docs/](docs/) folder for detailed guides:
 - **[Index Reference](docs/index-reference.md)** - Building and querying indexes
 - **[Page Navigation](docs/page-navigation.md)** - Working with pages, leafs, and plates
 - **[Database Schema](docs/database-schema.md)** - SQLite schema for direct queries
+- **[Outline](docs/outline.md)** - Per-work hierarchical navigation outlines (`outline-import`, `outline-list`, …)
 - **[Collections](docs/collections.md)** - Guide to IA collections by subject
 - **[Multi-Volume Works](docs/multi-volume.md)** - Handling multi-volume sets
 - **[Tips and Tricks](docs/tips-and-tricks.md)** - Advanced techniques
@@ -292,6 +294,58 @@ ia-utils get-url -i index.sqlite --pdf
 ia-utils get-url -i index.sqlite -l 42 --pdf
 ```
 
+### Outlines
+
+A `derived_outline` table can be attached to an index to record the
+document's chapter/section hierarchy. The schema and JSON payload format
+are identical to iiif-utils' `derived_outline`, so the same outline file
+imports cleanly into either CLI. See [docs/outline.md](docs/outline.md)
+for the full reference.
+
+#### `outline-import` - Bulk-Load an Outline
+
+```bash
+# Import (atomic — validates first, then inserts in a single transaction)
+ia-utils outline-import index.sqlite outline.json
+
+# Validate without writing
+ia-utils outline-import index.sqlite outline.json --dry-run
+
+# Overwrite an existing outline
+ia-utils outline-import index.sqlite outline.json --replace
+```
+
+The payload's `"work"` field must match the index's IA `identifier`
+(from `document_metadata`) or, as a fallback, the sqlite filename stem.
+
+#### `outline-list` - Print the Outline
+
+```bash
+# Indented tree (default)
+ia-utils outline-list index.sqlite
+
+# Pipe-friendly formats
+ia-utils outline-list index.sqlite --format json
+ia-utils outline-list index.sqlite --format jsonl
+```
+
+#### `outline-status` - Population Status Across Indices
+
+```bash
+# One row per index: leaf count, outline rows, top-level, max depth
+ia-utils outline-status indexes/*.sqlite
+
+# Just the ones still missing an outline
+ia-utils outline-status indexes/*.sqlite --missing-only
+```
+
+#### `outline-clear` - Delete the Outline
+
+```bash
+ia-utils outline-clear index.sqlite          # prompts for confirmation
+ia-utils outline-clear index.sqlite --yes    # no prompt
+```
+
 ## Identifiers
 
 Most commands accept Internet Archive identifiers in multiple forms:
@@ -388,6 +442,7 @@ Indexes are SQLite databases with these tables:
 | `text_blocks_fts` | FTS5 index for block-level search |
 | `page_numbers` | Leaf-to-printed-page mapping |
 | `archive_files` | Available file formats on IA |
+| `derived_outline` | Optional hierarchical navigation outline (see [docs/outline.md](docs/outline.md)) |
 
 Query directly with sqlite3:
 

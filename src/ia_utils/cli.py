@@ -16,6 +16,10 @@ from ia_utils.commands.ocr_page import ocr_page
 from ia_utils.commands.search_index import search_index
 from ia_utils.commands.search_ia import search_ia
 from ia_utils.commands.rebuild_index import rebuild_index
+from ia_utils.commands.outline_import import outline_import
+from ia_utils.commands.outline_list import outline_list
+from ia_utils.commands.outline_clear import outline_clear
+from ia_utils.commands.outline_status import outline_status
 
 
 @click.group()
@@ -57,6 +61,11 @@ def cli(ctx, verbose):
       get-text         Get OCR text from index
       get-url          Get URL without downloading
       ocr-page         Run local OCR on a page (pytesseract)
+    Outline:
+      outline-import   Bulk-load a JSON navigation outline into an index
+      outline-list     Print the outline (tree, table, json, jsonl, …)
+      outline-status   One-row summary per index (population progress)
+      outline-clear    Delete all outline rows (table is kept)
 
     IDENTIFIERS:
 
@@ -86,6 +95,10 @@ cli.add_command(ocr_page)
 cli.add_command(rebuild_index)
 cli.add_command(search_index)
 cli.add_command(search_ia)
+cli.add_command(outline_import)
+cli.add_command(outline_list)
+cli.add_command(outline_clear)
+cli.add_command(outline_status)
 
 
 if __name__ == '__main__':

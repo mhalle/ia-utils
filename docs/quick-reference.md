@@ -165,6 +165,27 @@ sqlite3 index.sqlite "SELECT AVG(avg_confidence) FROM text_blocks"
 | `text_blocks_fts` | Block-level full-text search |
 | `document_metadata` | IA metadata |
 | `index_metadata` | Index info (mode, date) |
+| `derived_outline` | Optional chapter/section outline (see [outline.md](outline.md)) |
+
+## Outline (`outline-*`)
+```bash
+# Import a JSON outline (atomic; --dry-run validates; --replace overwrites)
+ia-utils outline-import index.sqlite outline.json
+ia-utils outline-import index.sqlite outline.json --dry-run
+ia-utils outline-import index.sqlite outline.json --replace
+
+# Print the outline
+ia-utils outline-list index.sqlite                  # indented tree
+ia-utils outline-list index.sqlite --format json
+
+# Population status across a corpus (--missing-only for batch input)
+ia-utils outline-status indexes/*.sqlite
+ia-utils outline-status indexes/*.sqlite --missing-only
+
+# Wipe outline rows (table is kept)
+ia-utils outline-clear index.sqlite --yes
+```
+Schema-compatible with iiif-utils; same JSON payload works in both. See [outline.md](outline.md).
 
 ## Rights Check
 Always check before recommending:

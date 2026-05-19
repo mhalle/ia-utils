@@ -111,6 +111,61 @@ WHERE book_page_number GLOB '*[IVX]*' ORDER BY leaf_num;
 SELECT leaf_num FROM page_numbers WHERE book_page_number IS NULL;
 ```
 
+### derived_outline (optional)
+
+Hierarchical navigation outline for the document — chapters, sections,
+plates, etc. Created and populated by `ia-utils outline-import`; absent
+on indexes that haven't had an outline loaded yet.
+
+```sql
+CREATE TABLE derived_outline (
+    id                 INTEGER PRIMARY KEY,
+    level              INTEGER NOT NULL,
+    parent_id          INTEGER REFERENCES derived_outline(id),
+    title              TEXT    NOT NULL,
+    printed_page_start TEXT,
+    printed_page_end   TEXT,
+    canvas_start       INTEGER NOT NULL,  -- page_numbers.leaf_num
+    canvas_end         INTEGER NOT NULL,
+    notes              TEXT
+);
+CREATE INDEX ix_outline_canvas ON derived_outline(canvas_start);
+CREATE INDEX ix_outline_parent ON derived_outline(parent_id);
+```
+
+| Column | Description |
+|--------|-------------|
+| `level` | 0 for top-level entries; equals nesting depth. |
+| `parent_id` | NULL for roots; FK to `derived_outline(id)`. |
+| `title` | Native heading, verbatim. |
+| `printed_page_start` / `_end` | Printed page labels; integers as text, Roman numerals, or NULL. |
+| `canvas_start` / `_end` | Leaf range (`page_numbers.leaf_num`); inclusive, stored on every row. |
+| `notes` | Freeform caveat string; NULL is the common case. |
+
+Each row is self-contained — `canvas_start` / `canvas_end` are stored
+explicitly rather than computed from children. Canonical sort is
+`ORDER BY id` (= reading order). See [outline.md](outline.md) for the
+payload format, validations, and workflow.
+
+**Example Queries:**
+```sql
+-- Top-level entries in reading order
+SELECT level, title, canvas_start, canvas_end
+FROM derived_outline WHERE parent_id IS NULL ORDER BY id;
+
+-- Find the chapter that contains a given leaf
+SELECT title FROM derived_outline
+WHERE canvas_start <= 142 AND canvas_end >= 142
+ORDER BY level DESC LIMIT 1;
+
+-- Join with page_numbers to get printed-page labels
+SELECT o.title, ps.book_page_number AS pp_start, pe.book_page_number AS pp_end
+FROM derived_outline o
+LEFT JOIN page_numbers ps ON ps.leaf_num = o.canvas_start
+LEFT JOIN page_numbers pe ON pe.leaf_num = o.canvas_end
+ORDER BY o.id;
+```
+
 ---
 
 ## Searchtext Mode Schema

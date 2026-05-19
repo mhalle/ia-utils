@@ -91,6 +91,15 @@ ia-utils get-page -i index.sqlite -l 42 -o page.jpg
 - `get-url` - Get URL without downloading
 - `ocr-page` - Run local OCR on a page (requires tesseract)
 
+**Outline:**
+- `outline-import` - Bulk-load a JSON navigation outline into an index
+- `outline-list` - Pretty-print the outline (tree/table/json/jsonl/records/csv)
+- `outline-status` - One-row summary per index for batch progress tracking
+- `outline-clear` - Delete all outline rows (table is kept)
+
+Outline payloads are schema-compatible with the sister `iiif-utils` CLI;
+see [docs/outline.md](docs/outline.md).
+
 ## Documentation
 
 See [references/REFERENCE.md](references/REFERENCE.md) for complete documentation including:
