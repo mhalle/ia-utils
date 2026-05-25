@@ -292,29 +292,44 @@ def create_mosaic(
     # Calculate tile dimensions
     tile_width = width // cols
 
-    # Open all images and resize to tile width (maintain aspect ratio)
+    # Tile cell width is fixed by the grid; cell height is set by the
+    # FIRST image's aspect ratio. Tiles with different aspects (e.g.
+    # fold-out plates) are *letterboxed* — fit inside the cell preserving
+    # aspect, with white bars on the excess axis. Without this, fold-outs
+    # get squished into the standard cell shape.
     tiles = []
-    tile_height = None  # Will be determined from first image's aspect ratio
+    tile_height: Optional[int] = None  # Set from first image's aspect ratio
 
     for img_bytes in images:
         img = Image.open(BytesIO(img_bytes))
 
-        # Calculate height maintaining aspect ratio
-        aspect = img.height / img.width
-        new_height = int(tile_width * aspect)
-
-        # Use first image to set tile_height for all
+        aspect = img.height / img.width if img.width else 1.0
         if tile_height is None:
-            tile_height = new_height
+            tile_height = max(1, int(tile_width * aspect))
 
-        # Resize image
-        img = img.resize((tile_width, tile_height), Image.Resampling.LANCZOS)
+        # Fit-within: scale so neither side exceeds (tile_width, tile_height)
+        if img.width and img.height:
+            s = min(tile_width / img.width, tile_height / img.height)
+        else:
+            s = 1.0
+        new_w = max(1, int(img.width * s))
+        new_h = max(1, int(img.height * s))
+
+        resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
         # Convert to RGB if needed
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
+        if resized.mode != 'RGB':
+            resized = resized.convert('RGB')
 
-        tiles.append(img)
+        if new_w == tile_width and new_h == tile_height:
+            tiles.append(resized)
+        else:
+            cell = Image.new('RGB', (tile_width, tile_height), (255, 255, 255))
+            cell.paste(resized, ((tile_width - new_w) // 2,
+                                  (tile_height - new_h) // 2))
+            tiles.append(cell)
+
+    assert tile_height is not None
 
     # Calculate canvas size
     rows = (len(tiles) + cols - 1) // cols  # Ceiling division
