@@ -148,7 +148,9 @@ def get_pages(ctx, identifier, leaf, book, download_all, prefix, output, index,
 
             # Get page IDs from index for --all mode and open-ended ranges
             try:
-                pages_rows = list(db.execute("SELECT DISTINCT page_id FROM text_blocks ORDER BY page_id").fetchall())
+                # CAST normalizes page_id to int (handles legacy zero-padded
+                # TEXT page_id) so max()/range() treat leaves as numbers.
+                pages_rows = list(db.execute("SELECT DISTINCT CAST(page_id AS INTEGER) FROM text_blocks ORDER BY CAST(page_id AS INTEGER)").fetchall())
                 all_page_ids = [row[0] for row in pages_rows]
                 total_pages = len(all_page_ids)
                 max_page = max(all_page_ids) if all_page_ids else None

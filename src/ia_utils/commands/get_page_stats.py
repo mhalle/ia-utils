@@ -74,8 +74,10 @@ def get_page_stats(ctx, index, leaf, book, output_format, output):
 
     # Get all page IDs from index
     try:
+        # CAST normalizes page_id to int (handles legacy zero-padded TEXT
+        # page_id) so it compares cleanly against integer leaf ranges below.
         all_pages = [row[0] for row in db.execute(
-            "SELECT DISTINCT page_id FROM text_blocks ORDER BY page_id"
+            "SELECT DISTINCT CAST(page_id AS INTEGER) FROM text_blocks ORDER BY CAST(page_id AS INTEGER)"
         ).fetchall()]
     except Exception as e:
         logger.error(f"Failed to query pages: {e}")
@@ -118,9 +120,11 @@ def get_page_stats(ctx, index, leaf, book, output_format, output):
 
     # Build query for statistics
     placeholders = ','.join('?' * len(selected_pages))
+    # CAST normalizes page_id (integer current schema vs legacy zero-padded
+    # TEXT) for the filter, join to page_numbers, grouping, and leaf output.
     query = f"""
         SELECT
-            tb.page_id as leaf,
+            CAST(tb.page_id AS INTEGER) as leaf,
             pn.book_page_number as page,
             COUNT(*) as block_count,
             COALESCE(SUM(tb.line_count), 0) as line_count,
@@ -128,10 +132,10 @@ def get_page_stats(ctx, index, leaf, book, output_format, output):
             GROUP_CONCAT(tb.text, ' ') as all_text,
             AVG(tb.avg_confidence) as avg_confidence
         FROM text_blocks tb
-        LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num
-        WHERE tb.page_id IN ({placeholders})
-        GROUP BY tb.page_id
-        ORDER BY tb.page_id
+        LEFT JOIN page_numbers pn ON CAST(tb.page_id AS INTEGER) = pn.leaf_num
+        WHERE CAST(tb.page_id AS INTEGER) IN ({placeholders})
+        GROUP BY CAST(tb.page_id AS INTEGER)
+        ORDER BY CAST(tb.page_id AS INTEGER)
     """
 
     try:

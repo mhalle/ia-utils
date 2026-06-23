@@ -75,13 +75,15 @@ def search_pages(db: sqlite_utils.Database, query: str, limit: int, ia_id: str) 
     has_page_numbers = 'page_numbers' in db.table_names()
 
     if has_page_numbers:
+        # CAST normalizes page_id (integer current schema vs legacy zero-padded
+        # TEXT) for the join to page_numbers and for clean integer leaf output.
         sql = """
             SELECT
-                pf.page_id as leaf,
+                CAST(pf.page_id AS INTEGER) as leaf,
                 pn.book_page_number as page,
                 snippet(pages_fts, 0, '→', '←', '...', 32) as snippet
             FROM pages_fts pf
-            LEFT JOIN page_numbers pn ON pf.page_id = pn.leaf_num
+            LEFT JOIN page_numbers pn ON CAST(pf.page_id AS INTEGER) = pn.leaf_num
             WHERE pages_fts MATCH ?
             ORDER BY rank
             LIMIT ?
@@ -89,8 +91,8 @@ def search_pages(db: sqlite_utils.Database, query: str, limit: int, ia_id: str) 
     else:
         sql = """
             SELECT
-                pf.page_id as leaf,
-                pf.page_id as page,
+                CAST(pf.page_id AS INTEGER) as leaf,
+                CAST(pf.page_id AS INTEGER) as page,
                 snippet(pages_fts, 0, '→', '←', '...', 32) as snippet
             FROM pages_fts pf
             WHERE pages_fts MATCH ?
@@ -125,14 +127,16 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
     has_page_numbers = 'page_numbers' in db.table_names()
 
     if has_page_numbers:
+        # CAST normalizes page_id (integer current schema vs legacy zero-padded
+        # TEXT) for the join to page_numbers and for clean integer leaf output.
         sql = """
             SELECT
-                tb.page_id as leaf,
+                CAST(tb.page_id AS INTEGER) as leaf,
                 pn.book_page_number as page,
                 snippet(text_blocks_fts, 0, '→', '←', '...', 32) as snippet
             FROM text_blocks_fts tbf
             JOIN text_blocks tb ON tbf.rowid = tb.rowid
-            LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num
+            LEFT JOIN page_numbers pn ON CAST(tb.page_id AS INTEGER) = pn.leaf_num
             WHERE text_blocks_fts MATCH ?
             ORDER BY tbf.rank
             LIMIT ?
@@ -140,8 +144,8 @@ def search_blocks(db: sqlite_utils.Database, query: str, limit: int, ia_id: str)
     else:
         sql = """
             SELECT
-                tb.page_id as leaf,
-                tb.page_id as page,
+                CAST(tb.page_id AS INTEGER) as leaf,
+                CAST(tb.page_id AS INTEGER) as page,
                 snippet(text_blocks_fts, 0, '→', '←', '...', 32) as snippet
             FROM text_blocks_fts tbf
             JOIN text_blocks tb ON tbf.rowid = tb.rowid
