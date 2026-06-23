@@ -25,11 +25,13 @@ def get_page_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) -
     """
     results = []
     for leaf in leaf_nums:
-        # Get aggregated text for page
+        # Get aggregated text for page.
+        # CAST normalizes page_id: matches both integer (current schema) and
+        # legacy zero-padded TEXT (e.g. '000030') index formats.
         sql = """
             SELECT group_concat(text, ' ') as page_text
             FROM text_blocks
-            WHERE page_id = ?
+            WHERE CAST(page_id AS INTEGER) = ?
             ORDER BY rowid
         """
         row = db.execute(sql, [leaf]).fetchone()
@@ -64,6 +66,8 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
     """
     results = []
     for leaf in leaf_nums:
+        # CAST normalizes page_id (integer current schema vs legacy zero-padded
+        # TEXT) for both the join to page_numbers and the page filter.
         sql = """
             SELECT
                 tb.hocr_id,
@@ -72,8 +76,8 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
                 tb.avg_confidence,
                 pn.book_page_number
             FROM text_blocks tb
-            LEFT JOIN page_numbers pn ON tb.page_id = pn.leaf_num
-            WHERE tb.page_id = ?
+            LEFT JOIN page_numbers pn ON CAST(tb.page_id AS INTEGER) = pn.leaf_num
+            WHERE CAST(tb.page_id AS INTEGER) = ?
             ORDER BY tb.rowid
         """
         for row in db.execute(sql, [leaf]).fetchall():
@@ -92,8 +96,10 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
 @click.command(name='get-text')
 @click.option('-i', '--index', type=click.Path(exists=True), required=True,
               help='Index database path')
-@click.option('-l', '--leaf', 'leaf_range', required=True,
+@click.option('-l', '--leaf', 'leaf_range',
               help='Leaf number(s): 42, 1-10, 1,3,5, or 1-5,10,15-20')
+@click.option('-b', '--book', 'book_range',
+              help='Book page number(s): 42, 100-110, 1,3,5 (printed page, requires lookup)')
 @click.option('--blocks', is_flag=True,
               help='Show individual blocks instead of aggregated page text')
 @click.option('-f', '--field', 'fields', multiple=True,
@@ -103,19 +109,25 @@ def get_block_text(db: sqlite_utils.Database, leaf_nums: List[int], ia_id: str) 
 @click.option('--output-format', 'output_format',
               type=click.Choice(['records', 'table', 'json', 'jsonl', 'csv']),
               help='Output format')
-def get_text(index, leaf_range, blocks, fields, output, output_format):
+def get_text(index, leaf_range, book_range, blocks, fields, output, output_format):
     """Get full OCR text from index for specified pages.
 
     Retrieves the OCR text stored in the index database. Use after
     search-index to get full text of matching pages.
 
-    LEAF RANGE:
+    PAGE SELECTION (one required):
 
     \b
-    Single page:    -l 42
-    Range:          -l 1-10
-    List:           -l 1,3,5
-    Mixed:          -l 1-5,10,15-20
+    -l/--leaf   Leaf number(s) - physical scan order (direct)
+    -b/--book   Book page number(s) - printed page (requires lookup)
+
+    RANGE SYNTAX (either option):
+
+    \b
+    Single page:    42
+    Range:          1-10
+    List:           1,3,5
+    Mixed:          1-5,10,15-20
 
     OUTPUT FIELDS (page mode, default):
 
@@ -143,6 +155,9 @@ def get_text(index, leaf_range, blocks, fields, output, output_format):
     ia-utils get-text -i index.sqlite -l 175
     # Get text for page range
     ia-utils get-text -i index.sqlite -l 100-110
+    # Get text by printed book page number(s)
+    ia-utils get-text -i index.sqlite -b 42
+    ia-utils get-text -i index.sqlite -b 100-110
     # Get individual blocks with confidence scores
     ia-utils get-text -i index.sqlite -l 175 --blocks
     # Export to JSON
@@ -160,12 +175,39 @@ def get_text(index, leaf_range, blocks, fields, output, output_format):
             sys.exit(1)
         ia_id = doc_metadata['identifier']
 
-        # Parse leaf range
-        try:
-            leaf_nums = parse_page_range(leaf_range)
-        except ValueError as e:
-            click.echo(f"Error: Invalid leaf range: {e}", err=True)
+        # Validate page selection (exactly one of --leaf / --book)
+        if leaf_range and book_range:
+            click.echo("Error: Cannot specify both --leaf and --book", err=True)
             sys.exit(1)
+        if not leaf_range and not book_range:
+            click.echo("Error: Page selection required: use -l/--leaf or -b/--book", err=True)
+            sys.exit(1)
+
+        # Resolve to leaf numbers
+        if leaf_range:
+            try:
+                leaf_nums = parse_page_range(leaf_range)
+            except ValueError as e:
+                click.echo(f"Error: Invalid leaf range: {e}", err=True)
+                sys.exit(1)
+        else:
+            try:
+                book_pages = parse_page_range(book_range)
+            except ValueError as e:
+                click.echo(f"Error: Invalid book page range: {e}", err=True)
+                sys.exit(1)
+            # Look up leaf number for each book page (skip pages with no mapping)
+            leaf_nums = []
+            for book_page in book_pages:
+                row = db.execute(
+                    "SELECT leaf_num FROM page_numbers WHERE book_page_number = ?",
+                    [str(book_page)]
+                ).fetchone()
+                if row:
+                    leaf_nums.append(row[0])
+            if not leaf_nums:
+                click.echo(f"Error: No leaves found for book page(s): {book_range}", err=True)
+                sys.exit(1)
 
         # Get text
         if blocks:
