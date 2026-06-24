@@ -102,6 +102,8 @@ def ocr_image(
 @click.option('-l', '--leaf', type=int, help='Leaf number (physical scan order)')
 @click.option('-b', '--book', type=int, help='Book page number (printed page, requires lookup)')
 @click.option('-i', '--index', type=click.Path(exists=True), help='Index database path')
+@click.option('--image', 'image_path', type=click.Path(exists=True, dir_okay=False),
+              help='OCR a local image file instead of fetching a page from IA')
 @click.option('--bbox', type=str, help='Bounding box: "l,t,r,b" or "l t r b" or "bbox l t r b"')
 @click.option('--lang', type=str, help='Tesseract language code (default: from index or eng)')
 @click.option('--psm', type=int, default=3, help='Page segmentation mode (default: 3 = auto)')
@@ -109,15 +111,16 @@ def ocr_image(
 @click.option('-o', '--output', type=str, help='Output file path (.txt or .json)')
 @click.option('--output-format', type=click.Choice(['text', 'json']), help='Output format (auto from -o suffix)')
 @click.pass_context
-def ocr_page(ctx, identifier, leaf, book, index, bbox, lang, psm, oem, output, output_format):
-    """Run OCR on an Internet Archive page using pytesseract.
+def ocr_page(ctx, identifier, leaf, book, index, image_path, bbox, lang, psm, oem, output, output_format):
+    """Run OCR on an Internet Archive page (or a local image) using pytesseract.
 
     Requires tesseract binary (tesseract-ocr on some Linux systems).
 
     Fetches the original JP2 image and runs local OCR, which often
-    produces better results than IA's stored OCR.
+    produces better results than IA's stored OCR. Alternatively, use
+    --image to OCR an image file already on disk.
 
-    IDENTIFIER (optional if -i provided):
+    IDENTIFIER (optional if -i provided; ignored with --image):
     - IA ID: anatomicalatlasi00smit
     - URL: https://archive.org/details/anatomicalatlasi00smit
     - URL with page: https://archive.org/details/b31362138/page/leaf5/
@@ -126,6 +129,11 @@ def ocr_page(ctx, identifier, leaf, book, index, bbox, lang, psm, oem, output, o
     - Use -l/--leaf for physical scan number (direct)
     - Use -b/--book for printed page number (requires index or fetches mapping)
     - Can also extract from URL (/page/leafN/ or /page/N/)
+
+    LOCAL IMAGE (--image):
+    - OCR any image file on disk (jpg, png, tiff, jp2, ...) directly
+    - Skips all IA lookup; cannot be combined with IDENTIFIER, -l, -b, or -i
+    - --bbox, --lang, --psm, --oem, and -o still apply
 
     BOUNDING BOX:
     - Crop to region before OCR (useful for re-OCRing specific blocks)
@@ -142,111 +150,137 @@ def ocr_page(ctx, identifier, leaf, book, index, bbox, lang, psm, oem, output, o
         ia-utils ocr-page -i index.sqlite -l 15 --bbox 73,1101,2063,1352
         ia-utils ocr-page -i index.sqlite -b 42 -o page.json
         ia-utils ocr-page https://archive.org/details/b31362138/page/leaf100/
+        ia-utils ocr-page --image scan.jpg
+        ia-utils ocr-page --image scan.png --bbox 73,1101,2063,1352 -o out.json
     """
     verbose = ctx.obj.get('verbose', False)
     logger = Logger(verbose=verbose)
 
-    # Extract IA ID and page info from identifier (if provided)
-    ia_id = None
-    page_from_url = None
-    page_type_from_url = None
-    if identifier:
-        ia_id, page_from_url, page_type_from_url = page_utils.extract_ia_id_and_page(identifier)
-
-    # Load index if provided
-    db = None
-    if index:
-        if verbose:
-            logger.info(f"Loading index: {index}")
-        try:
-            db = sqlite_utils.Database(index)
-            doc_metadata = get_document_metadata(db)
-            if not doc_metadata:
-                logger.error("No metadata found in index database")
-                sys.exit(1)
-            ia_id_from_index = doc_metadata['identifier']
-            if ia_id and ia_id != ia_id_from_index:
-                logger.error(f"IA ID mismatch - Identifier: {ia_id}, Index: {ia_id_from_index}")
-                sys.exit(1)
-            ia_id = ia_id_from_index
-        except Exception as e:
-            logger.error(f"Failed to read index database: {e}")
-            sys.exit(1)
-
-    if not ia_id:
-        logger.error("IDENTIFIER required (or use -i with index)")
-        sys.exit(1)
-
-    # Validate mutually exclusive options
-    if leaf is not None and book is not None:
-        logger.error("Cannot specify both --leaf and --book")
-        sys.exit(1)
-
-    # Determine page number and type
-    if leaf is not None:
-        page_number_int = leaf
-        num_type = 'leaf'
-    elif book is not None:
-        page_number_int = book
-        num_type = 'book'
-    elif page_from_url is not None:
-        page_number_int = page_from_url
-        num_type = page_type_from_url or 'leaf'
-    else:
-        logger.error("Page number required: use -l/--leaf or -b/--book")
-        sys.exit(1)
-
-    # Convert to leaf number
-    try:
-        leaf_num = page_utils.get_leaf_num(page_number_int, num_type, ia_id=ia_id, db=db)
-    except ValueError as e:
-        logger.error(str(e))
-        sys.exit(1)
-
-    # Determine language
-    if lang is None:
-        if db:
-            lang = get_language_from_index(db) or 'eng'
-        else:
-            lang = 'eng'
-
-    # Determine output format
+    # Determine output format (shared by both modes)
     if output_format is None and output:
         suffix = Path(output).suffix.lower()
-        if suffix == '.json':
-            output_format = 'json'
-        else:
-            output_format = 'text'
+        output_format = 'json' if suffix == '.json' else 'text'
     elif output_format is None:
         output_format = 'text'
 
-    if verbose:
-        logger.section(f"OCR page from: {ia_id}")
-        logger.info(f"   Leaf: {leaf_num}" + (f" (from {num_type} {page_number_int})" if num_type == 'book' else ""))
-        logger.info(f"   Language: {lang}")
-        logger.info(f"   PSM: {psm}, OEM: {oem}")
-        if bbox:
-            logger.info(f"   Bbox: {bbox}")
+    # Acquire the source image. source_fields identifies it in JSON output.
+    if image_path:
+        # LOCAL IMAGE MODE: OCR a file on disk, no IA lookup.
+        if identifier or leaf is not None or book is not None or index:
+            logger.error("--image cannot be combined with IDENTIFIER, -l/--leaf, -b/--book, or -i/--index")
+            sys.exit(1)
 
-    # Fetch JP2 image
-    if verbose:
-        logger.progress("   Fetching JP2...", nl=False)
+        if lang is None:
+            lang = 'eng'
 
-    try:
-        source = JP2ImageSource()
-        image_bytes = source.fetch(ia_id, leaf_num)
         if verbose:
-            size_kb = len(image_bytes) / 1024
-            logger.progress_done(f"({size_kb:.0f} KB)")
-    except Exception as e:
+            logger.section(f"OCR local image: {image_path}")
+            logger.info(f"   Language: {lang}")
+            logger.info(f"   PSM: {psm}, OEM: {oem}")
+            if bbox:
+                logger.info(f"   Bbox: {bbox}")
+
+        try:
+            img = Image.open(image_path)
+        except Exception as e:
+            logger.error(f"Failed to open image: {e}")
+            sys.exit(1)
+
+        source_fields = {'source': str(image_path)}
+    else:
+        # INTERNET ARCHIVE MODE: resolve a page and fetch its JP2.
+        # Extract IA ID and page info from identifier (if provided)
+        ia_id = None
+        page_from_url = None
+        page_type_from_url = None
+        if identifier:
+            ia_id, page_from_url, page_type_from_url = page_utils.extract_ia_id_and_page(identifier)
+
+        # Load index if provided
+        db = None
+        if index:
+            if verbose:
+                logger.info(f"Loading index: {index}")
+            try:
+                db = sqlite_utils.Database(index)
+                doc_metadata = get_document_metadata(db)
+                if not doc_metadata:
+                    logger.error("No metadata found in index database")
+                    sys.exit(1)
+                ia_id_from_index = doc_metadata['identifier']
+                if ia_id and ia_id != ia_id_from_index:
+                    logger.error(f"IA ID mismatch - Identifier: {ia_id}, Index: {ia_id_from_index}")
+                    sys.exit(1)
+                ia_id = ia_id_from_index
+            except Exception as e:
+                logger.error(f"Failed to read index database: {e}")
+                sys.exit(1)
+
+        if not ia_id:
+            logger.error("IDENTIFIER required (or use -i with index, or --image for a local file)")
+            sys.exit(1)
+
+        # Validate mutually exclusive options
+        if leaf is not None and book is not None:
+            logger.error("Cannot specify both --leaf and --book")
+            sys.exit(1)
+
+        # Determine page number and type
+        if leaf is not None:
+            page_number_int = leaf
+            num_type = 'leaf'
+        elif book is not None:
+            page_number_int = book
+            num_type = 'book'
+        elif page_from_url is not None:
+            page_number_int = page_from_url
+            num_type = page_type_from_url or 'leaf'
+        else:
+            logger.error("Page number required: use -l/--leaf or -b/--book")
+            sys.exit(1)
+
+        # Convert to leaf number
+        try:
+            leaf_num = page_utils.get_leaf_num(page_number_int, num_type, ia_id=ia_id, db=db)
+        except ValueError as e:
+            logger.error(str(e))
+            sys.exit(1)
+
+        # Determine language
+        if lang is None:
+            if db:
+                lang = get_language_from_index(db) or 'eng'
+            else:
+                lang = 'eng'
+
         if verbose:
-            logger.progress_fail("failed")
-        logger.error(f"Failed to fetch image: {e}")
-        sys.exit(1)
+            logger.section(f"OCR page from: {ia_id}")
+            logger.info(f"   Leaf: {leaf_num}" + (f" (from {num_type} {page_number_int})" if num_type == 'book' else ""))
+            logger.info(f"   Language: {lang}")
+            logger.info(f"   PSM: {psm}, OEM: {oem}")
+            if bbox:
+                logger.info(f"   Bbox: {bbox}")
 
-    # Open and optionally crop image
-    img = Image.open(BytesIO(image_bytes))
+        # Fetch JP2 image
+        if verbose:
+            logger.progress("   Fetching JP2...", nl=False)
 
+        try:
+            source = JP2ImageSource()
+            image_bytes = source.fetch(ia_id, leaf_num)
+            if verbose:
+                size_kb = len(image_bytes) / 1024
+                logger.progress_done(f"({size_kb:.0f} KB)")
+        except Exception as e:
+            if verbose:
+                logger.progress_fail("failed")
+            logger.error(f"Failed to fetch image: {e}")
+            sys.exit(1)
+
+        img = Image.open(BytesIO(image_bytes))
+        source_fields = {'identifier': ia_id, 'leaf': leaf_num}
+
+    # Optionally crop to bbox (shared)
     crop_box = None
     if bbox:
         try:
@@ -275,8 +309,7 @@ def ocr_page(ctx, identifier, leaf, book, index, bbox, lang, psm, oem, output, o
     # Prepare output
     if output_format == 'json':
         result = {
-            'identifier': ia_id,
-            'leaf': leaf_num,
+            **source_fields,
             'lang': lang,
             'psm': psm,
             'oem': oem,

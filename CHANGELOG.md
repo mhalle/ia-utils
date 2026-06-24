@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Releases prior to 0.18.0 are recorded in the
 [GitHub Releases](https://github.com/mhalle/ia-utils/releases) history.
 
+## [0.19.0] - 2026-06-23
+
+### Added
+
+- `ocr-page` now accepts `--image PATH` to run OCR on a local image file
+  instead of fetching a page from the Internet Archive. It is mutually
+  exclusive with `IDENTIFIER`, `-l/--leaf`, `-b/--book`, and `-i/--index`;
+  `--bbox`, `--lang`, `--psm`, `--oem`, and `-o` still apply. JSON output uses
+  a `source` field (the image path) in place of `identifier`/`leaf`.
+
 ## [0.18.1] - 2026-06-23
 
 ### Fixed
@@ -38,5 +48,6 @@ Releases prior to 0.18.0 are recorded in the
   with `CAST(page_id AS INTEGER)`, so both integer and zero-padded `page_id`
   schemas resolve correctly in page and `--blocks` modes.
 
+[0.19.0]: https://github.com/mhalle/ia-utils/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/mhalle/ia-utils/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/mhalle/ia-utils/compare/v0.17.1...v0.18.0
